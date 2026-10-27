@@ -55,17 +55,21 @@ jboolean CheckAndClearException(JNIEnv* env)
     }
     env->ExceptionClear();
 
+    // The FX event loop never returns from its native frame, so every local
+    // created here must be deleted explicitly or it stays reachable for the
+    // lifetime of the process (pinning the throwable and its backtrace classes).
     jclass cls = env->FindClass("com/sun/glass/ui/Application");
-    if (env->ExceptionOccurred()) {
+    if (env->ExceptionCheck()) {
         env->ExceptionClear();
+        env->DeleteLocalRef(t);
         return JNI_TRUE;
     }
     env->CallStaticVoidMethod(cls, javaIDs.Application.reportExceptionMID, t);
-    if (env->ExceptionOccurred()) {
+    if (env->ExceptionCheck()) {
         env->ExceptionClear();
-        return JNI_TRUE;
     }
     env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(t);
 
     return JNI_TRUE;
 }
