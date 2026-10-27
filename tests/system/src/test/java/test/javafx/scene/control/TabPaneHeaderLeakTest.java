@@ -1,0 +1,96 @@
+/*
+ * Copyright (c) 2020, 2024, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+
+package test.javafx.scene.control;
+
+import java.lang.ref.WeakReference;
+import java.util.concurrent.CountDownLatch;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.scene.Scene;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.StackPane;
+import javafx.stage.Stage;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import test.util.Util;
+import test.util.memory.JMemoryBuddy;
+
+
+public class TabPaneHeaderLeakTest {
+
+    private static CountDownLatch startupLatch = new CountDownLatch(1);
+    private static StackPane root;
+    private static Stage stage;
+    private static TabPane tabPane;
+    private static WeakReference<TextField> textFieldWeakRef;
+    private static WeakReference<Tab> tabWeakRef;
+
+    public static class TestApp extends Application {
+        @Override
+        public void start(Stage primaryStage) throws Exception {
+            stage = primaryStage;
+            TextField tf = new TextField("Weak ref TF");
+            textFieldWeakRef = new WeakReference<>(tf);
+            Tab tab = new Tab("Tab", tf);
+            tabWeakRef = new WeakReference<>(tab);
+            tabPane = new TabPane(tab, new Tab("Tab1"));
+            tab = null;
+            tf = null;
+
+            root = new StackPane(tabPane);
+            Scene scene = new Scene(root);
+            primaryStage.setScene(scene);
+            primaryStage.setOnShown(l -> {
+                Platform.runLater(() -> startupLatch.countDown());
+            });
+            primaryStage.show();
+        }
+    }
+
+    @BeforeAll
+    public static void initFX() throws Exception {
+        Util.launch(startupLatch, TestApp.class);
+    }
+
+    @AfterAll
+    public static void teardownOnce() {
+        Util.shutdown();
+    }
+
+    @Test
+    public void testTabPaneHeaderLeak() throws Exception {
+        Util.sleep(100);
+        Util.runAndWait(() -> {
+            tabPane.getTabs().clear();
+            root.getChildren().clear();
+        });
+
+        JMemoryBuddy.assertCollectable(tabWeakRef, textFieldWeakRef);
+    }
+}

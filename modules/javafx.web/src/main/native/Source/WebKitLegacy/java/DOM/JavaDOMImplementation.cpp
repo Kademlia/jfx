@@ -1,0 +1,99 @@
+/*
+ * Copyright (c) 2013, 2026, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+
+#undef IMPL
+
+
+#include <WebCore/CSSStyleSheet.h>
+#include <WebCore/DOMException.h>
+#include <WebCore/DOMImplementation.h>
+#include <WebCore/Document.h>
+#if PLATFORM(JAVA)
+#include "DocumentInlines.h"
+#endif
+#include <WebCore/DocumentType.h>
+#include <WebCore/HTMLDocument.h>
+#include <WebCore/SVGTests.h>
+#include <WebCore/JSExecState.h>
+
+#include <wtf/RefPtr.h>
+#include <wtf/GetPtr.h>
+
+#include <WebCore/JavaDOMUtils.h>
+#include <wtf/java/JavaEnv.h>
+
+using namespace WebCore;
+
+extern "C" {
+
+#define IMPL (static_cast<DOMImplementation*>(jlong_to_ptr(peer)))
+
+JNIEXPORT void JNICALL Java_com_sun_webkit_dom_DOMImplementationImpl_dispose(JNIEnv*, jclass, jlong peer) {
+    IMPL->deref();
+}
+
+
+JNIEXPORT jlong JNICALL Java_com_sun_webkit_dom_DOMImplementationImpl_createDocumentTypeImpl(JNIEnv* env, jclass, jlong peer
+    , jstring qualifiedName
+    , jstring publicId
+    , jstring systemId)
+{
+    WebCore::JSMainThreadNullState state;
+    return JavaReturn<DocumentType>(env, WTF::getPtr(raiseOnDOMError(env, IMPL->createDocumentType(AtomString{String(env, qualifiedName)}
+            , AtomString{ String(env, publicId) }
+            , AtomString{ String(env, systemId)} ))));
+}
+
+
+JNIEXPORT jlong JNICALL Java_com_sun_webkit_dom_DOMImplementationImpl_createDocumentImpl(JNIEnv* env, jclass, jlong peer
+    , jstring namespaceURI
+    , jstring qualifiedName
+    , jlong doctype)
+{
+    WebCore::JSMainThreadNullState state;
+    return JavaReturn<Document>(env, WTF::getPtr(raiseOnDOMError(env, IMPL->createDocument(AtomString{String(env, namespaceURI)}
+            , AtomString{String(env, qualifiedName)}
+            , static_cast<DocumentType*>(jlong_to_ptr(doctype))))));
+}
+
+
+JNIEXPORT jlong JNICALL Java_com_sun_webkit_dom_DOMImplementationImpl_createCSSStyleSheetImpl(JNIEnv* env, jclass, jlong peer
+    , jstring title
+    , jstring media)
+{
+    WebCore::JSMainThreadNullState state;
+    return JavaReturn<CSSStyleSheet>(env, WTF::getPtr(IMPL->createCSSStyleSheet(AtomString{String(env, title)}, AtomString{String(env, media)})));
+}
+
+
+JNIEXPORT jlong JNICALL Java_com_sun_webkit_dom_DOMImplementationImpl_createHTMLDocumentImpl(JNIEnv* env, jclass, jlong peer
+    , jstring title)
+{
+    WebCore::JSMainThreadNullState state;
+    return JavaReturn<HTMLDocument>(env, WTF::getPtr(IMPL->createHTMLDocument(String(env, title))));
+}
+
+
+}

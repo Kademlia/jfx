@@ -1,0 +1,234 @@
+/*
+ * Copyright (c) 2013, 2025, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+package test.robot.testharness;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import javafx.animation.AnimationTimer;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.scene.Scene;
+import javafx.scene.paint.Color;
+import javafx.scene.robot.Robot;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import test.util.Util;
+
+/**
+ * Common base class for testing snapshot.
+ */
+public abstract class VisualTestBase {
+
+    // Used to launch the application before running any test
+    private static final CountDownLatch launchLatch = new CountDownLatch(1);
+    // Singleton Application instance
+    private static MyApp myApp;
+    // Scene instances used for testing
+    private static List<Stage> stages = new ArrayList<>();
+
+    // Glass Robot instance
+    Robot robot;
+
+    protected static boolean clearStages = true;
+
+    protected Robot getRobot() {
+        return robot;
+    }
+
+    // Application class. An instance is created and initialized before running
+    // the first test, and it lives through the execution of all tests.
+    public static class MyApp extends Application {
+
+        @Override
+        public void init() {
+            VisualTestBase.myApp = this;
+        }
+
+        @Override
+        public void start(Stage primaryStage) throws Exception {
+            Platform.setImplicitExit(false);
+            assertTrue(Platform.isFxApplicationThread());
+            assertNotNull(primaryStage);
+
+            launchLatch.countDown();
+        }
+    }
+
+    @BeforeAll
+    public static void doSetupOnce() {
+        Util.launch(launchLatch, MyApp.class);
+        assertEquals(0, launchLatch.getCount());
+    }
+
+    @AfterAll
+    public static void doTeardownOnce() {
+        Util.shutdown();
+    }
+
+    @BeforeEach
+    public void doSetup() {
+        if (clearStages) {
+            runAndWait(() -> {
+                if (!stages.isEmpty()) {
+                    for (final Stage stage : stages) {
+                        if (stage.isShowing()) {
+                            stage.hide();
+                        }
+                    }
+                    stages.clear();
+                }
+            });
+        }
+        runAndWait(() -> robot = new Robot());
+        Util.parkCursor(robot);
+    }
+
+    protected void runAndWait(final Runnable r) {
+        Util.runAndWait(r);
+    }
+
+    // This must be called on the FX app thread
+    protected Stage getStage() {
+        return getStage(true);
+    }
+
+    // This must be called on the FX app thread
+    protected Stage getStage(boolean alwaysOnTop) {
+        Stage stage = new Stage();
+        // Undecorated stage to workaround JDK-8089784
+        stage.initStyle(StageStyle.UNDECORATED);
+        if (alwaysOnTop) {
+            stage.setAlwaysOnTop(true);
+        }
+        stages.add(stage);
+        return stage;
+    }
+
+    protected void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            fail(ex);
+        }
+    }
+
+    // This must be called on the FX app thread
+    protected Color getColor(Scene scene, int x, int y) {
+        x += scene.getX() + scene.getWindow().getX();
+        y += scene.getY() + scene.getWindow().getY();
+        return getColor(x, y);
+    }
+
+    // This must be called on the FX app thread
+    protected Color getColor(int x, int y) {
+        return robot.getPixelColor(x, y);
+    }
+
+    private static String colorToString(Color c) {
+        int r = (int)(c.getRed() * 255.0);
+        int g = (int)(c.getGreen() * 255.0);
+        int b = (int)(c.getBlue() * 255.0);
+        int a = (int)(c.getOpacity() * 255.0);
+        return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+    }
+
+    protected void assertColorEquals(Color expected, Color actual, double delta) {
+        if (!testColorEquals(expected, actual, delta)) {
+            fail("expected:" + colorToString(expected)
+                    + " but was:" + colorToString(actual));
+        }
+    }
+
+    protected boolean testColorEquals(Color expected, Color actual, double delta) {
+        double deltaRed = Math.abs(expected.getRed() - actual.getRed());
+        double deltaGreen = Math.abs(expected.getGreen() - actual.getGreen());
+        double deltaBlue = Math.abs(expected.getBlue() - actual.getBlue());
+        double deltaOpacity = Math.abs(expected.getOpacity() - actual.getOpacity());
+        return (deltaRed <= delta && deltaGreen <= delta && deltaBlue <= delta && deltaOpacity <= delta);
+    }
+
+    protected void assertColorDoesNotEqual(Color notExpected, Color actual, double delta) {
+        double deltaRed = Math.abs(notExpected.getRed() - actual.getRed());
+        double deltaGreen = Math.abs(notExpected.getGreen() - actual.getGreen());
+        double deltaBlue = Math.abs(notExpected.getBlue() - actual.getBlue());
+        double deltaOpacity = Math.abs(notExpected.getOpacity() - actual.getOpacity());
+        if (deltaRed < delta && deltaGreen < delta && deltaBlue < delta && deltaOpacity < delta) {
+            fail("not expected:" + colorToString(notExpected)
+                    + " but was:" + colorToString(actual));
+        }
+    }
+
+    private AnimationTimer timer;
+
+    private void frameWait(int n) {
+        final CountDownLatch frameCounter = new CountDownLatch(n);
+        Platform.runLater(() -> {
+            timer = new AnimationTimer() {
+                @Override public void handle(long l) {
+                    frameCounter.countDown();
+                }
+            };
+            timer.start();
+        });
+
+        try {
+            frameCounter.await();
+        } catch (InterruptedException ex) {
+            fail("Unexpected exception: " + ex);
+        } finally {
+            runAndWait(() -> {
+                if (timer != null) {
+                    timer.stop();
+                }
+            });
+        }
+    }
+
+    // Waits until the fist frame is rendered after the stage has been shown
+    protected void waitFirstFrame() {
+        // This is a temporary workaround until JDK-8091284 is implemented
+        frameWait(100);
+    }
+
+    // Waits until the frame containing the current state of the scene has
+    // been rendered
+    protected void waitNextFrame() {
+        // This is a temporary workaround until JDK-8091284 is implemented
+        // Need to wait for the current frame in process and then the next frame
+        // However, we get many intermittent failures with 2 and a very few with
+        // 3, so we will wait for 5 frames.
+        frameWait(5);
+    }
+
+}
