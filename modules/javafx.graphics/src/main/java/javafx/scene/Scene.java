@@ -934,10 +934,11 @@ public class Scene implements EventTarget {
 
         Toolkit tk = Toolkit.getToolkit();
         tk.removeSceneTkPulseListener(scenePulseListener);
+        // Descendant peers can exist without a peer for the Scene itself.
+        disposeAccessibles();
+        Node root = getRoot();
+        if (root != null) root.releaseAccessible();
         if (accessible != null) {
-            disposeAccessibles();
-            Node root = getRoot();
-            if (root != null) root.releaseAccessible();
             accessible.dispose();
             accessible = null;
         }
@@ -5987,6 +5988,7 @@ public class Scene implements EventTarget {
     }
 
     private Map<Node, Accessible> accMap;
+    private boolean accessibleDisposalScheduled;
     Accessible removeAccessible(Node node) {
         if (accMap == null) return null;
         return accMap.remove(node);
@@ -5997,6 +5999,14 @@ public class Scene implements EventTarget {
             accMap = new HashMap<>();
         }
         accMap.put(node, acc);
+        if (peer == null && !accessibleDisposalScheduled) {
+            // Unshown scenes have no scene pulse to drain deferred peers.
+            accessibleDisposalScheduled = true;
+            Platform.runLater(() -> {
+                accessibleDisposalScheduled = false;
+                if (peer == null) disposeAccessibles();
+            });
+        }
     }
 
     private void disposeAccessibles() {
@@ -6017,8 +6027,13 @@ public class Scene implements EventTarget {
                         System.err.println("[A11y] 'node.getScene() == this' should never happen.");
                     }
                     acc.dispose();
+                    // A late query may have recreated a peer while the node was
+                    // detached. It has no new Scene to own its disposal.
+                    if (node.getScene() == null) {
+                        node.releaseAccessible();
+                    }
                 } else {
-                    if (node.getScene() == this) {
+                    if (node.getScene() == this && peer != null) {
                         node.accessible = acc;
                     } else {
                         acc.dispose();

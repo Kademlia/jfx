@@ -75,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -271,6 +272,9 @@ final public class StyleManager {
     // package for testing
     static class StylesheetContainer {
 
+        // Diagnostic node IDs that no stylesheet uses must not split style caches.
+        final Set<String> referencedIds = new HashSet<>();
+
         // the stylesheet uri
         final String fname;
         // the parsed stylesheet so we don't reparse for every parent that uses it
@@ -310,6 +314,13 @@ final public class StyleManager {
 
                         final Selector selector = selectors.get(s);
                         selectorPartitioning.partition(selector);
+                        if (selector instanceof SimpleSelector simple) {
+                            referencedIds.add(simple.getId());
+                        } else if (selector instanceof CompoundSelector compound) {
+                            for (SimpleSelector simple : compound.getSelectors()) {
+                                referencedIds.add(simple.getId());
+                            }
+                        }
 
                     }
                 }
@@ -1628,7 +1639,8 @@ final public class StyleManager {
             }
 
             key.className = cname;
-            key.id = id;
+            key.id = referencesId(id, sceneUserAgentStylesheet, subSceneUserAgentStylesheet,
+                    regionUserAgentStylesheet) ? id : null;
             key.styleClasses = FixedCapacitySet.of(styleClasses.size());
             for(int n=0, nMax=styleClasses.size(); n<nMax; n++) {
 
@@ -1772,6 +1784,30 @@ final public class StyleManager {
         }
     }
 
+    // Called under styleLock, after scene and parent stylesheets have been loaded.
+    private boolean referencesId(String id, String sceneStylesheet, String subSceneStylesheet,
+            String regionStylesheet) {
+        if (id == null || id.isEmpty()) return false;
+        for (StylesheetContainer container : platformUserAgentStylesheetContainers) {
+            if (container.referencedIds.contains(id)) return true;
+        }
+        for (StylesheetContainer container : stylesheetContainerMap.values()) {
+            if (container.referencedIds.contains(id)) return true;
+        }
+        boolean sceneLoaded = sceneStylesheet == null || sceneStylesheet.trim().isEmpty();
+        boolean subSceneLoaded = subSceneStylesheet == null || subSceneStylesheet.trim().isEmpty();
+        boolean regionLoaded = regionStylesheet == null || regionStylesheet.trim().isEmpty();
+        for (StylesheetContainer container : userAgentStylesheetContainers) {
+            if (container.referencedIds.contains(id)) return true;
+            if (!sceneLoaded && container.fname.equals(sceneStylesheet.trim())) sceneLoaded = true;
+            if (!subSceneLoaded && container.fname.equals(subSceneStylesheet.trim())) subSceneLoaded = true;
+            if (!regionLoaded && container.fname.equals(regionStylesheet)) regionLoaded = true;
+        }
+        // A custom UA stylesheet is loaded on a cache miss. Preserve the original
+        // key until its selectors are available, rather than assuming no IDs apply.
+        return !sceneLoaded || !subSceneLoaded || !regionLoaded;
+    }
+
     //--------------------------------------------------------------------------
     //
     // CssError reporting
@@ -1904,6 +1940,7 @@ final public class StyleManager {
             if (cacheMap != null) cacheMap.clear();
             if (styleCache != null) styleCache.clear();
             if (styleMapList != null) styleMapList.clear();
+            if (inlineStylesCache != null) inlineStylesCache.clear();
 
             baseStyleMapId = styleMapId;
             // 7/8ths is totally arbitrary

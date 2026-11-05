@@ -10577,6 +10577,21 @@ public abstract sealed class Node
                     return klassName.substring(klassName.lastIndexOf('.')+1);
                 }
             });
+            Scene scene = getScene();
+            if (scene == null || scene.getWindow() == null || !scene.getWindow().isShowing()) {
+                // Native queries can reach detached or never-presented nodes (for
+                // example a control's LABELED_BY node). No scene pulse owns these
+                // peers. Keep them valid for this callback, then release them if
+                // they have not become part of a presented scene in the meantime.
+                Accessible pending = accessible;
+                Platform.runLater(() -> {
+                    Scene currentScene = getScene();
+                    if (accessible == pending && (currentScene == null || currentScene.getWindow() == null
+                            || !currentScene.getWindow().isShowing())) {
+                        releaseAccessible();
+                    }
+                });
+            }
         }
         return accessible;
     }

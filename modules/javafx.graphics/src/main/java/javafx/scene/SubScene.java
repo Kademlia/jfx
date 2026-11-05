@@ -935,6 +935,13 @@ public non-sealed class SubScene extends Node {
         return lightOwnerChanged;
     }
 
+    @Override
+    void releaseAccessible() {
+        Parent root = getRoot();
+        if (root != null) root.releaseAccessible();
+        super.releaseAccessible();
+    }
+
     List<LightBase> getLights() {
         return lights;
     }
