@@ -418,9 +418,6 @@ jobs:
       BOOT_JDK_VERSION: "25.0.1"
       BOOT_JDK_FILENAME: "jdk-25.0.1_windows-x64_bin.zip"
       BOOT_JDK_URL: "https://download.oracle.com/java/25/archive/jdk-25.0.1_windows-x64_bin.zip"
-      ANT_DIR: "apache-ant-1.10.5"
-      ANT_FILENAME: "apache-ant-1.10.5.tar.gz"
-      ANT_URL: "https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.5-bin.tar.gz"
 
     steps:
       - name: Checkout the source
@@ -457,12 +454,6 @@ jobs:
           & curl -L "https://www.cygwin.com/setup-x86_64.exe" -o "$HOME/cygwin/setup-x86_64.exe"
           Start-Process -FilePath "$HOME\cygwin\setup-x86_64.exe" -ArgumentList "--quiet-mode --packages make,zip,unzip --root $HOME\cygwin\cygwin64 --local-package-dir $HOME\cygwin\packages --site http://mirrors.kernel.org/sourceware/cygwin --no-desktop --no-shortcuts --no-startmenu --no-admin" -Wait -NoNewWindow
 
-      - name: Install dependencies
-        run: |
-          mkdir -p "$HOME\build-tools"
-          & curl -L "$env:ANT_URL" -o "$HOME/build-tools/$env:ANT_FILENAME"
-          tar -zxf "$HOME/build-tools/$env:ANT_FILENAME" -C "$HOME/build-tools"
-
       - name: Setup environment
         run: |
           echo "dir ...\VC\Tools\MSVC"
@@ -473,7 +464,9 @@ jobs:
           $env:Path = "$HOME\cygwin\cygwin64\bin;$HOME\cygwin\cygwin64\bin;$env:Path" ;
           $env:JAVA_HOME = "$HOME\bootjdk\jdk-$env:BOOT_JDK_VERSION" ;
           echo "JAVA_HOME=$env:JAVA_HOME"
-          $env:ANT_HOME = "${HOME}\build-tools\$env:ANT_DIR"
+          # Use the Ant installation supplied by the Windows runner image.
+          $antCommand = Get-Command ant.bat -CommandType Application -ErrorAction Stop
+          $env:ANT_HOME = Split-Path (Split-Path $antCommand.Source -Parent) -Parent
           echo "ANT_HOME=$env:ANT_HOME"
           $env:Path = "$env:JAVA_HOME\bin;$env:ANT_HOME\bin;$env:Path" ;
           echo "Path=$env:Path"
