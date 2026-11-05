@@ -1297,7 +1297,10 @@ void ViewContainer::WmImeNotify(HWND hwnd, WPARAM wParam, LPARAM lParam)
         HIMC hIMC = ImmGetContext(hwnd);
         CANDIDATEFORM cf;
 
-        GetCandidatePos(&curPos);
+        if (!GetCandidatePos(&curPos)) {
+            ImmReleaseContext(hwnd, hIMC);
+            return;
+        }
         ::ScreenToClient(hwnd, &curPos);
 
         for (int iCandType=0; iCandType<32; iCandType++, bits<<=1) {
@@ -1374,21 +1377,24 @@ void ViewContainer::SendInputMethodEvent(jstring text,
 }
 
 // Gets the candidate position
-void ViewContainer::GetCandidatePos(LPPOINT curPos)
+BOOL ViewContainer::GetCandidatePos(LPPOINT curPos)
 {
     JNIEnv *env = GetEnv();
-    double* nativePos;
+    if (env == NULL) return FALSE;
 
-    jdoubleArray pos = (jdoubleArray)env->CallObjectMethod(GetView(),
+    JLocalRef<jdoubleArray> pos(env, (jdoubleArray)env->CallObjectMethod(GetView(),
                         javaIDs.View.notifyInputMethodCandidatePosRequest,
-                        0);
-    nativePos = env->GetDoubleArrayElements(pos, NULL);
-    if (nativePos) {
-        curPos->x = (int)nativePos[0];
-        curPos->y  = (int)nativePos[1];
-
-        env->ReleaseDoubleArrayElements(pos, nativePos, 0);
+                        0));
+    if (CheckAndClearException(env) || !pos) return FALSE;
+    double* nativePos = env->GetDoubleArrayElements(pos, NULL);
+    if (nativePos == NULL) {
+        CheckAndClearException(env);
+        return FALSE;
     }
+    curPos->x = (int)nativePos[0];
+    curPos->y = (int)nativePos[1];
+    env->ReleaseDoubleArrayElements(pos, nativePos, 0);
+    return TRUE;
 }
 
 namespace {

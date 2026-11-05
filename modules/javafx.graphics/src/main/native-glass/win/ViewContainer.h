@@ -57,7 +57,7 @@ class ViewContainer {
             int cClause, int* rgClauseBoundary,
             int cAttrBlock, int* rgAttrBoundary, BYTE *rgAttrValue,
             int commitedTextLength, int caretPos, int visiblePos);
-        void GetCandidatePos(LPPOINT curPos);
+        BOOL GetCandidatePos(LPPOINT curPos);
 
         void SendViewTypedEvent(int repCount, jchar wChar);
 

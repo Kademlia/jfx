@@ -144,9 +144,16 @@ public abstract class Accessible {
     private GetAttribute getAttribute = new GetAttribute();
 
     public Object getAttribute(AccessibleAttribute attribute, Object... parameters) {
+        AccessibleAttribute previousAttribute = getAttribute.attribute;
+        Object[] previousParameters = getAttribute.parameters;
         getAttribute.attribute = attribute;
         getAttribute.parameters = parameters;
-        return QuantumToolkit.runWithoutRenderLock(getAttribute);
+        try {
+            return QuantumToolkit.runWithoutRenderLock(getAttribute);
+        } finally {
+            getAttribute.attribute = previousAttribute;
+            getAttribute.parameters = previousParameters;
+        }
     }
 
     private class ExecuteAction implements Supplier<Void> {
@@ -161,9 +168,16 @@ public abstract class Accessible {
     private ExecuteAction executeAction = new ExecuteAction();
 
     public void executeAction(AccessibleAction action, Object... parameters) {
+        AccessibleAction previousAction = executeAction.action;
+        Object[] previousParameters = executeAction.parameters;
         executeAction.action = action;
         executeAction.parameters = parameters;
-        QuantumToolkit.runWithoutRenderLock(executeAction);
+        try {
+            QuantumToolkit.runWithoutRenderLock(executeAction);
+        } finally {
+            executeAction.action = previousAction;
+            executeAction.parameters = previousParameters;
+        }
     }
 
     public abstract void sendNotification(AccessibleAttribute notification);

@@ -1322,11 +1322,17 @@ JNIEXPORT jlong JNICALL Java_com_sun_glass_ui_win_WinAccessible_UiaRaiseAutomati
     HRESULT hr = E_FAIL;
 
     hr = GlassAccessible::copyVariant(env, oldV, &ov);
-    if (FAILED(hr)) return (jlong)hr;
-    hr = GlassAccessible::copyVariant(env, newV, &nv);
-    if (FAILED(hr)) return (jlong)hr;
-
-    return (jlong)UiaRaiseAutomationPropertyChangedEvent(pProvider, (PROPERTYID)id, ov, nv);
+    if (SUCCEEDED(hr)) {
+        hr = GlassAccessible::copyVariant(env, newV, &nv);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = UiaRaiseAutomationPropertyChangedEvent(pProvider, (PROPERTYID)id, ov, nv);
+    }
+    // The copied strings, interfaces and arrays remain owned by this call,
+    // including when copying the second variant fails before reaching UIA.
+    VariantClear(&nv);
+    VariantClear(&ov);
+    return (jlong)hr;
 }
 
 /*
