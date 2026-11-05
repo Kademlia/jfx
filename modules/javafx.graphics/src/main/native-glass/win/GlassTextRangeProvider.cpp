@@ -180,7 +180,7 @@ IFACEMETHODIMP GlassTextRangeProvider::FindText(BSTR text, BOOL backward, BOOL i
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
     jsize length = SysStringLen(text);
-    jstring jText = env->NewString((const jchar *)text, length);
+    JLString jText(env, env->NewString((const jchar *)text, length));
     jlong ptr = env->CallLongMethod(m_jTextRangeProvider, mid_FindText, jText, backward, ignoreCase);
     if (CheckAndClearException(env)) return E_FAIL;
     GlassTextRangeProvider* gtrp = reinterpret_cast<GlassTextRangeProvider*>(ptr);
@@ -198,7 +198,7 @@ IFACEMETHODIMP GlassTextRangeProvider::GetAttributeValue(TEXTATTRIBUTEID attribu
 {
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
-    jobject jVariant = env->CallObjectMethod(m_jTextRangeProvider, mid_GetAttributeValue, attributeId);
+    JLObject jVariant(env, env->CallObjectMethod(m_jTextRangeProvider, mid_GetAttributeValue, attributeId));
     if (CheckAndClearException(env)) return E_FAIL;
 
     return GlassAccessible::copyVariant(env, jVariant, pRetVal);
@@ -208,7 +208,7 @@ IFACEMETHODIMP GlassTextRangeProvider::GetBoundingRectangles(SAFEARRAY **pRetVal
 {
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
-    jarray bounds = (jarray)env->CallObjectMethod(m_jTextRangeProvider, mid_GetBoundingRectangles);
+    JLocalRef<jarray> bounds(env, (jarray)env->CallObjectMethod(m_jTextRangeProvider, mid_GetBoundingRectangles));
     if (CheckAndClearException(env)) return E_FAIL;
 
     return GlassAccessible::copyList(env, bounds, pRetVal, VT_R8);
@@ -233,7 +233,7 @@ IFACEMETHODIMP GlassTextRangeProvider::GetText(int maxLength, BSTR *pRetVal)
 {
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
-    jstring string = (jstring)env->CallObjectMethod(m_jTextRangeProvider, mid_GetText, maxLength);
+    JLString string(env, (jstring)env->CallObjectMethod(m_jTextRangeProvider, mid_GetText, maxLength));
     if (CheckAndClearException(env)) return E_FAIL;
 
     return GlassAccessible::copyString(env, string, pRetVal);
@@ -312,7 +312,7 @@ IFACEMETHODIMP GlassTextRangeProvider::GetChildren(SAFEARRAY **pRetVal)
 {
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
-    jarray children = (jarray)env->CallObjectMethod(m_jTextRangeProvider, mid_GetChildren);
+    JLocalRef<jarray> children(env, (jarray)env->CallObjectMethod(m_jTextRangeProvider, mid_GetChildren));
     if (CheckAndClearException(env)) return E_FAIL;
 
     return GlassAccessible::copyList(env, children, pRetVal, VT_UNKNOWN);

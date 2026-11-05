@@ -209,12 +209,12 @@ static jfieldID fid_pDblVal;
             break;
         }
         case VT_BSTR: {
-            jstring str = (jstring)env->GetObjectField(jVariant, fid_bstrVal);
+            JLString str(env, (jstring)env->GetObjectField(jVariant, fid_bstrVal));
             hr = GlassAccessible::copyString(env, str, &(pRetVal->bstrVal));
             break;
         }
         case VT_R8 | VT_ARRAY: {
-            jarray list = (jarray)env->GetObjectField(jVariant, fid_pDblVal);
+            JLocalRef<jarray> list(env, (jarray)env->GetObjectField(jVariant, fid_pDblVal));
             hr = GlassAccessible::copyList(env, list, &(pRetVal->parray), VT_R8);
             break;
         }
@@ -244,7 +244,7 @@ HRESULT GlassAccessible::callArrayMethod(jmethodID mid, VARTYPE vt, SAFEARRAY **
 {
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
-    jarray list = (jarray)env->CallObjectMethod(m_jAccessible, mid);
+    JLocalRef<jarray> list(env, (jarray)env->CallObjectMethod(m_jAccessible, mid));
     if (CheckAndClearException(env)) return E_FAIL;
 
     return GlassAccessible::copyList(env, list, pRetVal, vt);
@@ -377,7 +377,8 @@ IFACEMETHODIMP GlassAccessible::GetPropertyValue(PROPERTYID propertyId, VARIANT*
     if (pRetVal == NULL) return E_INVALIDARG;
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
-    jobject jVariant = env->CallObjectMethod(m_jAccessible, mid_GetPropertyValue, propertyId);
+    // UI Automation can call this inside the long-lived Glass event loop JNI frame.
+    JLObject jVariant(env, env->CallObjectMethod(m_jAccessible, mid_GetPropertyValue, propertyId));
     if (CheckAndClearException(env)) return E_FAIL;
 
     return copyVariant(env, jVariant, pRetVal);
@@ -391,7 +392,7 @@ IFACEMETHODIMP GlassAccessible::get_BoundingRectangle(UiaRect *pRetVal)
     if (pRetVal == NULL) return E_INVALIDARG;
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
-    jfloatArray bounds = (jfloatArray)env->CallObjectMethod(m_jAccessible, mid_get_BoundingRectangle);
+    JLocalRef<jfloatArray> bounds(env, (jfloatArray)env->CallObjectMethod(m_jAccessible, mid_get_BoundingRectangle));
     if (CheckAndClearException(env)) return E_FAIL;
 
     if (bounds) {
@@ -657,7 +658,7 @@ IFACEMETHODIMP GlassAccessible::SetValue(LPCWSTR val)
     size_t size = wcslen(val);
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
-    jstring str = env->NewString((const jchar *)val, (jsize)size);
+    JLString str(env, env->NewString((const jchar *)val, (jsize)size));
     if (!CheckAndClearException(env)) {
         env->CallVoidMethod(m_jAccessible, mid_SetValueString, str);
         if (CheckAndClearException(env)) return E_FAIL;
@@ -669,7 +670,7 @@ IFACEMETHODIMP GlassAccessible::get_Value(BSTR *pRetVal)
 {
     JNIEnv* env = GetEnv();
     if (env == NULL) return E_FAIL;
-    jstring str = (jstring)env->CallObjectMethod(m_jAccessible, mid_get_ValueString);
+    JLString str(env, (jstring)env->CallObjectMethod(m_jAccessible, mid_get_ValueString));
     if (CheckAndClearException(env)) return E_FAIL;
 
     return GlassAccessible::copyString(env, str, pRetVal);
