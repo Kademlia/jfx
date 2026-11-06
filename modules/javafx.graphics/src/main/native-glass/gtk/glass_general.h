@@ -58,35 +58,8 @@ extern JavaVM* javaVM;
 
 #include <exception>
 
-struct jni_exception: public std::exception {
-    jni_exception(jthrowable _th): throwable(_th), message() {
-            jclass jc = mainEnv->FindClass("java/lang/Throwable");
-            if (mainEnv->ExceptionOccurred()) {
-                mainEnv->ExceptionDescribe();
-                mainEnv->ExceptionClear();
-            }
-            jmethodID jmid = mainEnv->GetMethodID(jc, "getMessage", "()Ljava/lang/String;");
-            if (mainEnv->ExceptionOccurred()) {
-                mainEnv->ExceptionDescribe();
-                mainEnv->ExceptionClear();
-            }
-            jmessage = (jstring)mainEnv->CallObjectMethod(throwable, jmid);
-            message = jmessage == NULL ? "" : mainEnv->GetStringUTFChars(jmessage, NULL);
-    }
-    const char *what() const throw()
-    {
-        return message;
-    }
-    ~jni_exception() throw(){
-        if (jmessage && message) {
-            mainEnv->ReleaseStringUTFChars(jmessage, message);
-        }
-    }
-private:
-    jthrowable throwable;
-    const char *message;
-    jstring jmessage;
-};
+// The Java exception has already been reported and cleared before unwinding.
+struct jni_exception: public std::exception {};
 
 #define SAFE_FREE(PTR)  \
     if ((PTR) != NULL) {  \
@@ -111,7 +84,7 @@ private:
 #define JNI_EXCEPTION_TO_CPP(env) \
         if (env->ExceptionCheck()) {\
             check_and_clear_exception(env);\
-            throw jni_exception(env->ExceptionOccurred());\
+            throw jni_exception();\
         }
 
 #define HANDLE_MEM_ALLOC_ERROR(env, nativePtr, message) \

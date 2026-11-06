@@ -53,6 +53,8 @@ do {                                                                            
         (*ENV)->ExceptionClear(ENV);                                               \
         (*ENV)->CallStaticVoidMethod(                                              \
             ENV, jApplicationClass, jApplicationReportException, t);               \
+        (*ENV)->ExceptionClear(ENV);                                               \
+        (*ENV)->DeleteLocalRef(ENV, t);                                            \
     };                                                                             \
 } while (0)
 

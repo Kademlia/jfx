@@ -27,6 +27,7 @@
 #define _LOCATOR_STREAM_H_
 
 #include "Locator.h"
+#include <memory>
 #include <stdint.h>
 
 class CStreamCallbacks
@@ -80,19 +81,25 @@ class CLocatorStream : public CLocator
 {
 public:
     CLocatorStream(CStreamCallbacks *callbacks, const char* contentType, const char* location, int64_t llSizeHint);
+    // Preserve primary-before-audio connection retirement.
+    ~CLocatorStream() { m_pStreamCallbacks.reset(); }
 
-    inline CStreamCallbacks* GetCallbacks() { return m_pStreamCallbacks; }
+    inline CStreamCallbacks* GetCallbacks() { return m_pStreamCallbacks.get(); }
 
-    inline void SetAudioCallbacks(CStreamCallbacks *callbacks) { m_pAudioStreamCallbacks = callbacks; }
-    inline CStreamCallbacks* GetAudioCallbacks() { return m_pAudioStreamCallbacks; }
+    inline void SetAudioCallbacks(CStreamCallbacks *callbacks) { m_pAudioStreamCallbacks.reset(callbacks); }
+    inline CStreamCallbacks* GetAudioCallbacks() { return m_pAudioStreamCallbacks.get(); }
+
+    // Transfer ownership only when a source takes responsibility for retirement.
+    CStreamCallbacks* ReleaseCallbacks() { return m_pStreamCallbacks.release(); }
+    CStreamCallbacks* ReleaseAudioCallbacks() { return m_pAudioStreamCallbacks.release(); }
 
 protected:
-    CStreamCallbacks *m_pStreamCallbacks;
+    std::unique_ptr<CStreamCallbacks> m_pStreamCallbacks;
     // Callbacks to read separate audio stream. Current use case is HLS.
     // ContentType of CLocatorStream is set to content type of main URL.
     // Actual media mimetype of stream is read via HLS_PROP_GET_MIMETYPE property for HLS.
     // For non-HLS streams media mimetype is same as contentType.
-    CStreamCallbacks *m_pAudioStreamCallbacks;
+    std::unique_ptr<CStreamCallbacks> m_pAudioStreamCallbacks;
 };
 
 #endif // _LOCATOR_STREAM_H_

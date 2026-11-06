@@ -57,6 +57,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.Reference;
+import java.lang.ref.ReferenceQueue;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
@@ -757,16 +758,36 @@ final public class StyleManager {
     //--------------------------------------------------------------------------
 
     private final static class ImageCache {
-        private Map<String, SoftReference<Image>> imageCache = new HashMap<>();
+        private final Map<String, ImageReference> imageCache = new HashMap<>();
+        private final ReferenceQueue<Image> imageQueue = new ReferenceQueue<>();
+
+        private static final class ImageReference extends SoftReference<Image> {
+            private final String url;
+
+            ImageReference(String url, Image image, ReferenceQueue<Image> queue) {
+                super(image, queue);
+                this.url = url;
+            }
+        }
+
+        private void drainImageQueue() {
+            ImageReference reference;
+            while ((reference = (ImageReference) imageQueue.poll()) != null) {
+                // A reload may already have replaced the collected image.
+                imageCache.remove(reference.url, reference);
+            }
+        }
 
         Image getCachedImage(String url) {
 
             synchronized (styleLock) {
-                Image image = null;
-                if (imageCache.containsKey(url)) {
-                    image = imageCache.get(url).get();
-                }
+                drainImageQueue();
+                ImageReference reference = imageCache.get(url);
+                Image image = reference != null ? reference.get() : null;
                 if (image == null) {
+                    if (reference != null) {
+                        imageCache.remove(url, reference);
+                    }
                     try {
                         image = new Image(url);
                         // JDK-8117908
@@ -785,7 +806,9 @@ final public class StyleManager {
                             }
                             image = null;
                         }
-                        imageCache.put(url, new SoftReference<>(image));
+                        if (image != null) {
+                            imageCache.put(url, new ImageReference(url, image, imageQueue));
+                        }
                     } catch (IllegalArgumentException | NullPointerException ex) {
                         // url was empty!
                         final PlatformLogger logger = getLogger();
@@ -802,6 +825,7 @@ final public class StyleManager {
         void cleanUpImageCache(String imgFname) {
 
             synchronized (styleLock) {
+                drainImageQueue();
                 if (imgFname == null || imageCache.isEmpty()) return;
 
                 final String fname = imgFname.trim();
@@ -814,8 +838,8 @@ final public class StyleManager {
                 final String[] entriesToRemove = new String[imageCache.size()];
                 int count = 0;
 
-                final Set<Entry<String, SoftReference<Image>>> entrySet = imageCache.entrySet();
-                for (Entry<String, SoftReference<Image>> entry : entrySet) {
+                final Set<Entry<String, ImageReference>> entrySet = imageCache.entrySet();
+                for (Entry<String, ImageReference> entry : entrySet) {
 
                     final String key = entry.getKey();
                     if (entry.getValue().get() == null) {

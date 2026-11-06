@@ -25,6 +25,7 @@
 
 #import "GlassStatics.h"
 #import "GlassTimer.h"
+#import "GlassMacros.h"
 
 static NSObject<GlassTimerDelegate> *gDelegate = nil;
 
@@ -44,12 +45,21 @@ static NSObject<GlassTimerDelegate> *gDelegate = nil;
 {
     if (self->_env == NULL)
     {
-        (*jVM)->AttachCurrentThreadAsDaemon(jVM, (void **)&self->_env, NULL);
+        if ((*jVM)->AttachCurrentThreadAsDaemon(jVM, (void **)&self->_env, NULL) != JNI_OK) {
+            return;
+        }
     }
 
-    if (self->_runnable != NULL)
-    {
-        (*self->_env)->CallVoidMethod(self->_env, self->_runnable, jRunnableRun);
+    // A Java callback may stop or replace the shared timer before returning.
+    jobject runnable;
+    @synchronized (self) {
+        runnable = (*self->_env)->NewLocalRef(self->_env, self->_runnable);
+    }
+    GLASS_CHECK_EXCEPTION(self->_env);
+    if (runnable != NULL) {
+        (*self->_env)->CallVoidMethod(self->_env, runnable, jRunnableRun);
+        GLASS_CHECK_EXCEPTION(self->_env);
+        (*self->_env)->DeleteLocalRef(self->_env, runnable);
     }
 
 }
@@ -63,8 +73,17 @@ static NSObject<GlassTimerDelegate> *gDelegate = nil;
 JNIEXPORT jlong JNICALL Java_com_sun_glass_ui_ios_IosTimer__1start
 (JNIEnv *env, jobject itimer, jobject runnable)
 {
-    ((GlassTimer *)gDelegate)->_runnable = (*env)->NewGlobalRef(env, runnable);
-    return (jlong)gDelegate;
+    GlassTimer *timer = (GlassTimer *)gDelegate;
+    jobject replacement = (*env)->NewGlobalRef(env, runnable);
+    if (replacement == NULL) return 0;
+    @synchronized (timer) {
+        jobject previous = timer->_runnable;
+        timer->_runnable = replacement;
+        (*env)->DeleteGlobalRef(env, previous);
+    }
+    [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+    [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:UITrackingRunLoopMode];
+    return (jlong)timer;
 }
 
 /*
@@ -76,4 +95,11 @@ JNIEXPORT void JNICALL Java_com_sun_glass_ui_ios_IosTimer__1stopVsyncTimer
 (JNIEnv *env, jobject itimer, jlong vtimer)
 {
     [displayLink removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+    [displayLink removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:UITrackingRunLoopMode];
+    GlassTimer *timer = (GlassTimer *)gDelegate;
+    @synchronized (timer) {
+        jobject previous = timer->_runnable;
+        timer->_runnable = NULL;
+        (*env)->DeleteGlobalRef(env, previous);
+    }
 }

@@ -63,9 +63,21 @@
     jlongArray jresult = NULL;
     GET_MAIN_JENV;
     if (env == NULL) return NULL;
-    jresult = (jlongArray)(*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityAttributeNames);
-    GLASS_CHECK_EXCEPTION(env);
-    return jArrayToNSArray(env, jresult, jLongToID);
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        GLASS_CHECK_EXCEPTION(env);
+        return NULL;
+    }
+    @try {
+        jresult = (jlongArray)(*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityAttributeNames);
+        if ((*env)->ExceptionCheck(env)) {
+            GLASS_CHECK_EXCEPTION(env);
+            return NULL;
+        }
+        return jArrayToNSArray(env, jresult, jLongToID);
+    } @finally {
+        GLASS_CHECK_EXCEPTION(env);
+        (*env)->PopLocalFrame(env, NULL);
+    }
 }
 
 - (id)accessibilityAttributeValue:(NSString *)attribute
@@ -73,9 +85,21 @@
     jobject jresult = NULL;
     GET_MAIN_JENV;
     if (env == NULL) return NULL;
-    jresult = (jobject)(*env)->CallLongMethod(env, self->jAccessible, jAccessibilityAttributeValue, (jlong)attribute);
-    GLASS_CHECK_EXCEPTION(env);
-    return variantToID(env, jresult);
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        GLASS_CHECK_EXCEPTION(env);
+        return NULL;
+    }
+    @try {
+        jresult = (*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityAttributeValue, (jlong)attribute);
+        if ((*env)->ExceptionCheck(env)) {
+            GLASS_CHECK_EXCEPTION(env);
+            return NULL;
+        }
+        return variantToID(env, jresult);
+    } @finally {
+        GLASS_CHECK_EXCEPTION(env);
+        (*env)->PopLocalFrame(env, NULL);
+    }
 }
 
 - (BOOL)accessibilityIsAttributeSettable:(NSString *)attribute
@@ -127,10 +151,22 @@
     jlongArray jresult = NULL;
     GET_MAIN_JENV;
     if (env == NULL) return NULL;
-    jresult = (jlongArray)(*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityArrayAttributeValues, (jlong)attribute, (jint)index, (jint)maxCount);
-    GLASS_CHECK_EXCEPTION(env);
-    if (jresult == NULL) return [super accessibilityArrayAttributeValues: attribute index: index maxCount: maxCount];
-    return jArrayToNSArray(env, jresult, jLongToID);
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        GLASS_CHECK_EXCEPTION(env);
+        return NULL;
+    }
+    @try {
+        jresult = (jlongArray)(*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityArrayAttributeValues, (jlong)attribute, (jint)index, (jint)maxCount);
+        if ((*env)->ExceptionCheck(env)) {
+            GLASS_CHECK_EXCEPTION(env);
+            return NULL;
+        }
+        if (jresult == NULL) return [super accessibilityArrayAttributeValues: attribute index: index maxCount: maxCount];
+        return jArrayToNSArray(env, jresult, jLongToID);
+    } @finally {
+        GLASS_CHECK_EXCEPTION(env);
+        (*env)->PopLocalFrame(env, NULL);
+    }
 }
 
 /* Parameterized Attributes */
@@ -140,9 +176,21 @@
     jlongArray jresult = NULL;
     GET_MAIN_JENV;
     if (env == NULL) return NULL;
-    jresult = (jlongArray)(*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityParameterizedAttributeNames);
-    GLASS_CHECK_EXCEPTION(env);
-    return jArrayToNSArray(env, jresult, jLongToID);
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        GLASS_CHECK_EXCEPTION(env);
+        return NULL;
+    }
+    @try {
+        jresult = (jlongArray)(*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityParameterizedAttributeNames);
+        if ((*env)->ExceptionCheck(env)) {
+            GLASS_CHECK_EXCEPTION(env);
+            return NULL;
+        }
+        return jArrayToNSArray(env, jresult, jLongToID);
+    } @finally {
+        GLASS_CHECK_EXCEPTION(env);
+        (*env)->PopLocalFrame(env, NULL);
+    }
 }
 
 - (id)accessibilityAttributeValue:(NSString *)attribute forParameter:(id)parameter
@@ -150,9 +198,21 @@
     jobject jresult = NULL;
     GET_MAIN_JENV;
     if (env == NULL) return NULL;
-    jresult = (jobject)(*env)->CallLongMethod(env, self->jAccessible, jAccessibilityAttributeValueForParameter, (jlong)attribute, (jlong)parameter);
-    GLASS_CHECK_EXCEPTION(env);
-    return variantToID(env, jresult);
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        GLASS_CHECK_EXCEPTION(env);
+        return NULL;
+    }
+    @try {
+        jresult = (*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityAttributeValueForParameter, (jlong)attribute, (jlong)parameter);
+        if ((*env)->ExceptionCheck(env)) {
+            GLASS_CHECK_EXCEPTION(env);
+            return NULL;
+        }
+        return variantToID(env, jresult);
+    } @finally {
+        GLASS_CHECK_EXCEPTION(env);
+        (*env)->PopLocalFrame(env, NULL);
+    }
 }
 
 /* Actions */
@@ -162,9 +222,21 @@
     jlongArray jresult = NULL;
     GET_MAIN_JENV;
     if (env == NULL) return NULL;
-    jresult = (jlongArray)(*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityActionNames);
-    GLASS_CHECK_EXCEPTION(env);
-    return jArrayToNSArray(env, jresult, jLongToID);
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        GLASS_CHECK_EXCEPTION(env);
+        return NULL;
+    }
+    @try {
+        jresult = (jlongArray)(*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityActionNames);
+        if ((*env)->ExceptionCheck(env)) {
+            GLASS_CHECK_EXCEPTION(env);
+            return NULL;
+        }
+        return jArrayToNSArray(env, jresult, jLongToID);
+    } @finally {
+        GLASS_CHECK_EXCEPTION(env);
+        (*env)->PopLocalFrame(env, NULL);
+    }
 }
 
 - (NSString *)accessibilityActionDescription:(NSString *)action
@@ -172,9 +244,21 @@
     jobject jresult = NULL;
     GET_MAIN_JENV;
     if (env == NULL) return NULL;
-    jresult = (jobject)(*env)->CallLongMethod(env, self->jAccessible, jAccessibilityActionDescription, (jlong)action);
-    GLASS_CHECK_EXCEPTION(env);
-    return jStringToNSString(env, jresult);
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        GLASS_CHECK_EXCEPTION(env);
+        return NULL;
+    }
+    @try {
+        jresult = (*env)->CallObjectMethod(env, self->jAccessible, jAccessibilityActionDescription, (jlong)action);
+        if ((*env)->ExceptionCheck(env)) {
+            GLASS_CHECK_EXCEPTION(env);
+            return NULL;
+        }
+        return jStringToNSString(env, jresult);
+    } @finally {
+        GLASS_CHECK_EXCEPTION(env);
+        (*env)->PopLocalFrame(env, NULL);
+    }
 }
 
 - (void)accessibilityPerformAction:(NSString *)action
@@ -237,9 +321,14 @@ NSArray* jArrayToNSArray(JNIEnv *env, jarray srcArray, jMapper mapper) {
         for (CFIndex index = 0; index < size; index++) {
             jobject element = (*env)->GetObjectArrayElement(env, srcArray, index);
             if ((*env)->ExceptionCheck(env)) return NULL;
-            id variant = variantToID(env, element);
-            if (variant) {
-                [array addObject: variant];
+            @try {
+                id variant = variantToID(env, element);
+                if ((*env)->ExceptionCheck(env)) return NULL;
+                if (variant) {
+                    [array addObject: variant];
+                }
+            } @finally {
+                (*env)->DeleteLocalRef(env, element);
             }
         }
         return array;
@@ -277,100 +366,114 @@ NSString* jStringToNSString(JNIEnv *env, jstring string) {
 
 id variantToID(JNIEnv *env, jobject variant) {
     if (variant == NULL) return NULL;
-    jint type = (*env)->GetIntField(env, variant, jVariantType);
-    switch (type) {
-    case com_sun_glass_ui_mac_MacVariant_NSArray_id: {
-        jlongArray longArray = (*env)->GetObjectField(env, variant, jVariantLongArray);
-        return jArrayToNSArray(env, longArray, jLongToID);
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSArray_int: {
-        jintArray intArray = (*env)->GetObjectField(env, variant, jVariantIntArray);
-        return jArrayToNSArray(env, intArray, jIntToNSNumber);
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSObject: {
-        return (id)(*env)->GetLongField(env, variant, jVariantLong1);
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSString: {
-        jstring string = (*env)->GetObjectField(env, variant, jVariantString);
-        return jStringToNSString(env, string);
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSDictionary: {
-        jlongArray longArray = (*env)->GetObjectField(env, variant, jVariantLongArray);
-        jobjectArray objectArray = (*env)->GetObjectField(env, variant, jVariantVariantArray);
-        NSArray* keys = jArrayToNSArray(env, longArray, jLongToID);
-        NSArray* values = jArrayToNSArray(env, objectArray, jVariantToID);
-        if (keys != NULL && values != NULL && [keys count] == [values count]) {
-            return [NSDictionary dictionaryWithObjects: values forKeys: keys];
-        }
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
         return NULL;
     }
-    case com_sun_glass_ui_mac_MacVariant_NSAttributedString: {
-        jstring string = (*env)->GetObjectField(env, variant, jVariantString);
-        NSString* nsString = jStringToNSString(env, string);
-        if (nsString == NULL) return NULL;
-        NSMutableAttributedString *attrString = [[NSMutableAttributedString alloc] initWithString:nsString];
-        jobjectArray stylesArray = (*env)->GetObjectField(env, variant, jVariantVariantArray);
-        if (stylesArray) {
-            /* Do not use GetPrimitiveArrayCritical for stylesArray */
-            jsize stylesCount = (*env)->GetArrayLength(env, stylesArray);
+    @try {
+        jint type = (*env)->GetIntField(env, variant, jVariantType);
+        switch (type) {
+        case com_sun_glass_ui_mac_MacVariant_NSArray_id: {
+            jlongArray longArray = (*env)->GetObjectField(env, variant, jVariantLongArray);
+            return jArrayToNSArray(env, longArray, jLongToID);
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSArray_int: {
+            jintArray intArray = (*env)->GetObjectField(env, variant, jVariantIntArray);
+            return jArrayToNSArray(env, intArray, jIntToNSNumber);
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSObject: {
+            return (id)(*env)->GetLongField(env, variant, jVariantLong1);
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSString: {
+            jstring string = (*env)->GetObjectField(env, variant, jVariantString);
+            return jStringToNSString(env, string);
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSDictionary: {
+            jlongArray longArray = (*env)->GetObjectField(env, variant, jVariantLongArray);
+            jobjectArray objectArray = (*env)->GetObjectField(env, variant, jVariantVariantArray);
+            NSArray* keys = jArrayToNSArray(env, longArray, jLongToID);
+            if ((*env)->ExceptionCheck(env)) return NULL;
+            NSArray* values = jArrayToNSArray(env, objectArray, jVariantToID);
+            if ((*env)->ExceptionCheck(env)) return NULL;
+            if (keys != NULL && values != NULL && [keys count] == [values count]) {
+                return [NSDictionary dictionaryWithObjects: values forKeys: keys];
+            }
+            return NULL;
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSAttributedString: {
+            jstring string = (*env)->GetObjectField(env, variant, jVariantString);
+            NSString* nsString = jStringToNSString(env, string);
+            if (nsString == NULL) return NULL;
+            NSMutableAttributedString *attrString = [[[NSMutableAttributedString alloc] initWithString:nsString] autorelease];
+            jobjectArray stylesArray = (*env)->GetObjectField(env, variant, jVariantVariantArray);
+            if (stylesArray) {
+                /* Do not use GetPrimitiveArrayCritical for stylesArray */
+                jsize stylesCount = (*env)->GetArrayLength(env, stylesArray);
 
-            for (jsize index = 0; index < stylesCount; index++) {
-                /* jStyle is a special MacVariant with key, location, and length */
-                jobject jStyle = (*env)->GetObjectArrayElement(env, stylesArray, index);
-                if ((*env)->ExceptionCheck(env)) return NULL;
-                id value = variantToID(env, jStyle);
-                if (value) {
-                    jint location = (*env)->GetIntField(env, jStyle, jVariantLocation);
-                    jint length = (*env)->GetIntField(env, jStyle, jVariantLength);
-                    jlong key = (*env)->GetLongField(env, jStyle, jVariantKey);
-                    if (key) {
-                        [attrString addAttribute: (NSString *)key value: value range: NSMakeRange(location, length)];
+                for (jsize index = 0; index < stylesCount; index++) {
+                    /* jStyle is a special MacVariant with key, location, and length */
+                    jobject jStyle = (*env)->GetObjectArrayElement(env, stylesArray, index);
+                    if ((*env)->ExceptionCheck(env)) return NULL;
+                    @try {
+                        id value = variantToID(env, jStyle);
+                        if ((*env)->ExceptionCheck(env)) return NULL;
+                        if (value) {
+                            jint location = (*env)->GetIntField(env, jStyle, jVariantLocation);
+                            jint length = (*env)->GetIntField(env, jStyle, jVariantLength);
+                            jlong key = (*env)->GetLongField(env, jStyle, jVariantKey);
+                            if (key) {
+                                [attrString addAttribute: (NSString *)key value: value range: NSMakeRange(location, length)];
+                            }
+                        }
+                    } @finally {
+                        (*env)->DeleteLocalRef(env, jStyle);
                     }
                 }
             }
+            return attrString;
         }
-        return [attrString autorelease];
+        case com_sun_glass_ui_mac_MacVariant_NSValue_point: {
+            jfloat x = (*env)->GetFloatField(env, variant, jVariantFloat1);
+            jfloat y = (*env)->GetFloatField(env, variant, jVariantFloat2);
+            return [NSValue valueWithPoint: NSMakePoint(x,y)];
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSValue_size: {
+            jfloat width = (*env)->GetFloatField(env, variant, jVariantFloat1);
+            jfloat height = (*env)->GetFloatField(env, variant, jVariantFloat2);
+            return [NSValue valueWithSize: NSMakeSize(width, height)];
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSValue_rectangle: {
+            jfloat x = (*env)->GetFloatField(env, variant, jVariantFloat1);
+            jfloat y = (*env)->GetFloatField(env, variant, jVariantFloat2);
+            jfloat width = (*env)->GetFloatField(env, variant, jVariantFloat3);
+            jfloat height = (*env)->GetFloatField(env, variant, jVariantFloat4);
+            return [NSValue valueWithRect: NSMakeRect(x, y, width, height)];
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSValue_range: {
+            jint start = (*env)->GetIntField(env, variant, jVariantInt1);
+            jint length = (*env)->GetIntField(env, variant, jVariantInt2);
+            return [NSValue valueWithRange: NSMakeRange(start, length)];
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSNumber_Boolean: {
+            jint value = (*env)->GetIntField(env, variant, jVariantInt1);
+            return [NSNumber numberWithBool: value];
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSNumber_Double: {
+            jdouble value = (*env)->GetDoubleField(env, variant, jVariantDouble1);
+            return [NSNumber numberWithDouble: value];
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSNumber_Int: {
+            jint value = (*env)->GetIntField(env, variant, jVariantInt1);
+            return [NSNumber numberWithInt: value];
+        }
+        case com_sun_glass_ui_mac_MacVariant_NSDate: {
+            jlong value = (*env)->GetLongField(env, variant, jVariantLong1);
+            return [NSDate dateWithTimeIntervalSince1970: value];
+        }
+        }
+        return NULL;
+    } @finally {
+        (*env)->PopLocalFrame(env, NULL);
     }
-    case com_sun_glass_ui_mac_MacVariant_NSValue_point: {
-        jfloat x = (*env)->GetFloatField(env, variant, jVariantFloat1);
-        jfloat y = (*env)->GetFloatField(env, variant, jVariantFloat2);
-        return [NSValue valueWithPoint: NSMakePoint(x,y)];
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSValue_size: {
-        jfloat width = (*env)->GetFloatField(env, variant, jVariantFloat1);
-        jfloat height = (*env)->GetFloatField(env, variant, jVariantFloat2);
-        return [NSValue valueWithSize: NSMakeSize(width, height)];
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSValue_rectangle: {
-        jfloat x = (*env)->GetFloatField(env, variant, jVariantFloat1);
-        jfloat y = (*env)->GetFloatField(env, variant, jVariantFloat2);
-        jfloat width = (*env)->GetFloatField(env, variant, jVariantFloat3);
-        jfloat height = (*env)->GetFloatField(env, variant, jVariantFloat4);
-        return [NSValue valueWithRect: NSMakeRect(x, y, width, height)];
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSValue_range: {
-        jint start = (*env)->GetIntField(env, variant, jVariantInt1);
-        jint length = (*env)->GetIntField(env, variant, jVariantInt2);
-        return [NSValue valueWithRange: NSMakeRange(start, length)];
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSNumber_Boolean: {
-        jint value = (*env)->GetIntField(env, variant, jVariantInt1);
-        return [NSNumber numberWithBool: value];
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSNumber_Double: {
-        jdouble value = (*env)->GetDoubleField(env, variant, jVariantDouble1);
-        return [NSNumber numberWithDouble: value];
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSNumber_Int: {
-        jint value = (*env)->GetIntField(env, variant, jVariantInt1);
-        return [NSNumber numberWithInt: value];
-    }
-    case com_sun_glass_ui_mac_MacVariant_NSDate: {
-        jlong value = (*env)->GetLongField(env, variant, jVariantLong1);
-        return [NSDate dateWithTimeIntervalSince1970: value];
-    }
-    }
-    return NULL;
 }
 
 /*

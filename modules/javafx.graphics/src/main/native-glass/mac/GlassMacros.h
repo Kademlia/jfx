@@ -158,6 +158,7 @@ do {                                                                            
         (*ENV)->CallStaticVoidMethod(                                              \
             ENV, jApplicationClass, javaIDs.Application.reportException, t);       \
         (*ENV)->ExceptionClear(ENV);                                               \
+        (*ENV)->DeleteLocalRef(ENV, t);                                            \
     };                                                                             \
 } while (0)
 
@@ -170,6 +171,7 @@ do {                                                                            
         (*ENV)->CallStaticVoidMethod(                                              \
             ENV, jApplicationClass, javaIDs.Application.reportException, t);       \
         (*ENV)->ExceptionClear(ENV);                                               \
+        (*ENV)->DeleteLocalRef(ENV, t);                                            \
         return;                                                                    \
     };                                                                             \
 } while (0)

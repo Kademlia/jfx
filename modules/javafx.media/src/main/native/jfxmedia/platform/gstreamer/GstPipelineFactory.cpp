@@ -36,6 +36,7 @@
 #include <gst/gstelement.h>
 #include <Utils/LowLevelPerf.h>
 #include <algorithm>
+#include <memory>
 #if ENABLE_VIDEOCONVERT
 #include <gst/app/gstappsink.h>
 #endif
@@ -97,10 +98,29 @@ uint32_t CGstPipelineFactory::CreatePlayerPipeline(CLocator* locator, CPipelineO
     pOptions->SetStreamMimeType(streamMimeType);
 
     // Create main source.
+    bool pipelineCreated = false;
+    struct SourceOwner {
+        GstElement* source;
+        CStreamCallbacks* callbacks;
+        bool& pipelineCreated;
+
+        ~SourceOwner() {
+            if (source != NULL) {
+                if (!pipelineCreated) {
+                    // The source may already be parented into a bin. Disconnect
+                    // every callback; the owning closure retires its data.
+                    g_signal_handlers_disconnect_by_data(source, callbacks);
+                }
+                gst_object_unref(source);
+            }
+        }
+    };
+    SourceOwner sourceOwner = {NULL, callbacks, pipelineCreated};
+    SourceOwner audioSourceOwner = {NULL, audioCallbacks, pipelineCreated};
     GstElement* pSource = NULL;
     GstElement* pBuffer = NULL;
-    uRetCode = CreateSourceElement(locator, callbacks,
-            streamMimeType, &pSource, &pBuffer, pOptions);
+    uRetCode = CreateSourceElement(locator, streamLocator->ReleaseCallbacks(),
+            streamMimeType, &pSource, &pBuffer, &sourceOwner.source, pOptions);
     if (ERROR_NONE != uRetCode)
         return uRetCode;
 
@@ -116,8 +136,8 @@ uint32_t CGstPipelineFactory::CreatePlayerPipeline(CLocator* locator, CPipelineO
 
         GstElement* pAudioSource = NULL;
         GstElement* pAudioBuffer = NULL;
-        uRetCode = CreateSourceElement(locator, audioCallbacks,
-                streamMimeType, &pAudioSource, &pAudioBuffer, pOptions);
+        uRetCode = CreateSourceElement(locator, streamLocator->ReleaseAudioCallbacks(),
+                streamMimeType, &pAudioSource, &pAudioBuffer, &audioSourceOwner.source, pOptions);
         if (ERROR_NONE != uRetCode)
             return uRetCode;
 
@@ -135,6 +155,7 @@ uint32_t CGstPipelineFactory::CreatePlayerPipeline(CLocator* locator, CPipelineO
 
     if (NULL == *ppPipeline)
         return ERROR_PIPELINE_CREATION;
+    pipelineCreated = true;
 
     LOWLEVELPERF_EXECTIMESTOP("CGstPipelineFactory::CreatePlayerPipeline()");
 
@@ -228,8 +249,10 @@ uint32_t CGstPipelineFactory::CreatePipeline(CPipelineOptions *pOptions, GstElem
   */
 uint32_t CGstPipelineFactory::CreateSourceElement(CLocator *locator, CStreamCallbacks *callbacks,
                                                   int streamMimeType, GstElement **ppElement,
-                                                   GstElement **ppBuffer, CPipelineOptions *pOptions)
+                                                   GstElement **ppBuffer, GstElement **ppJavaSource,
+                                                   CPipelineOptions *pOptions)
 {
+    std::unique_ptr<CStreamCallbacks> callbackOwner(callbacks);
     GstElement *source = NULL;
     GstElement *buffer = NULL;
 
@@ -245,7 +268,12 @@ uint32_t CGstPipelineFactory::CreateSourceElement(CLocator *locator, CStreamCall
     g_signal_connect(javaSource, "read-next-block", G_CALLBACK(SourceReadNextBlock), callbacks);
     g_signal_connect(javaSource, "copy-block", G_CALLBACK(SourceCopyBlock), callbacks);
     g_signal_connect(javaSource, "seek-data", G_CALLBACK(SourceSeekData), callbacks);
-    g_signal_connect(javaSource, "close-connection", G_CALLBACK(SourceCloseConnection), callbacks);
+    // The close signal owns the callbacks, including source-finalization paths
+    // that never emit close-connection. Its notifier runs after disconnect.
+    g_signal_connect_data(javaSource, "close-connection", G_CALLBACK(SourceCloseConnection), callbacks,
+            [](gpointer data, GClosure*) { delete static_cast<CStreamCallbacks*>(data); },
+            (GConnectFlags)0);
+    callbackOwner.release();
     g_signal_connect(javaSource, "property", G_CALLBACK(SourceProperty), callbacks);
 
     if (isRandomAccess)
@@ -277,21 +305,28 @@ uint32_t CGstPipelineFactory::CreateSourceElement(CLocator *locator, CStreamCall
     {
         g_object_set(javaSource, "stop-on-pause", FALSE, NULL);
         source = gst_bin_new(NULL);
-        if (NULL == source)
+        if (NULL == source) {
+            gst_object_unref(javaSource);
             return ERROR_GSTREAMER_BIN_CREATE;
+        }
 
         if (pOptions->GetHLSModeEnabled())
             buffer = CreateElement("hlsprogressbuffer");
         else
             buffer = CreateElement("progressbuffer");
 
-        if (NULL == buffer)
+        if (NULL == buffer) {
+            gst_object_unref(javaSource);
+            gst_object_unref(source);
             return ERROR_GSTREAMER_ELEMENT_CREATE;
+        }
 
         gst_bin_add_many(GST_BIN(source), javaSource, buffer, NULL);
 
-        if (!gst_element_link(javaSource, buffer))
+        if (!gst_element_link(javaSource, buffer)) {
+            gst_object_unref(source);
             return ERROR_GSTREAMER_ELEMENT_LINK;
+        }
     }
     else
     {
@@ -300,6 +335,7 @@ uint32_t CGstPipelineFactory::CreateSourceElement(CLocator *locator, CStreamCall
 
     *ppElement = source;
     *ppBuffer = buffer;
+    *ppJavaSource = GST_ELEMENT(gst_object_ref(javaSource));
 
     return ERROR_NONE;
 }
@@ -333,13 +369,8 @@ void CGstPipelineFactory::SourceCloseConnection(GstElement *src, gpointer data)
 {
     CStreamCallbacks* callbacks = (CStreamCallbacks*)data;
     callbacks->CloseConnection();
-    g_signal_handlers_disconnect_by_func (src, (void*)G_CALLBACK (SourceReadNextBlock), callbacks);
-    g_signal_handlers_disconnect_by_func (src, (void*)G_CALLBACK (SourceReadBlock), callbacks);
-    g_signal_handlers_disconnect_by_func (src, (void*)G_CALLBACK (SourceCopyBlock), callbacks);
-    g_signal_handlers_disconnect_by_func (src, (void*)G_CALLBACK (SourceSeekData), callbacks);
-    g_signal_handlers_disconnect_by_func (src, (void*)G_CALLBACK (SourceCloseConnection), callbacks);
-    g_signal_handlers_disconnect_by_func (src, (void*)G_CALLBACK (SourceProperty), callbacks);
-    delete callbacks;
+    // The executing close closure retains callbacks until this invocation returns.
+    g_signal_handlers_disconnect_by_data(src, callbacks);
 }
 
 /**

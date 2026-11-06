@@ -42,14 +42,17 @@ jmethodID CJavaInputStreamCallbacks::m_CloseConnectionMID = 0;
 jmethodID CJavaInputStreamCallbacks::m_PropertyMID = 0;
 
 CJavaInputStreamCallbacks::CJavaInputStreamCallbacks()
-    : m_ConnectionHolder(0)
+    : m_ConnectionHolder(0), m_jvm(NULL)
 {}
 
 CJavaInputStreamCallbacks::~CJavaInputStreamCallbacks()
-{}
+{
+    CloseConnection();
+}
 
 bool CJavaInputStreamCallbacks::Init(JNIEnv *env, jobject jConnectionHolder)
 {
+    CloseConnection();
     if (NULL == jConnectionHolder)
         return false;
 
@@ -274,19 +277,21 @@ int64_t CJavaInputStreamCallbacks::Seek(int64_t position)
 
 void CJavaInputStreamCallbacks::CloseConnection()
 {
+    if (m_ConnectionHolder == NULL)
+        return;
+
     CJavaEnvironment javaEnv(m_jvm);
     JNIEnv *pEnv = javaEnv.getEnvironment();
 
     if (pEnv) {
-        jobject connection = pEnv->NewLocalRef(m_ConnectionHolder);
-        if (connection) {
+        // Retire the field before calling Java, which may reenter close.
+        jobject connection = m_ConnectionHolder;
+        m_ConnectionHolder = NULL;
+        if (m_CloseConnectionMID != NULL) {
             pEnv->CallVoidMethod(connection, m_CloseConnectionMID);
             javaEnv.clearException();
-            pEnv->DeleteLocalRef(connection);
         }
-
-        pEnv->DeleteGlobalRef(m_ConnectionHolder);
-        m_ConnectionHolder = NULL;
+        pEnv->DeleteGlobalRef(connection);
     }
 }
 

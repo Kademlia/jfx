@@ -42,6 +42,7 @@ import javafx.css.CssMetaData;
 import javafx.css.PseudoClass;
 import javafx.css.Styleable;
 import javafx.event.ActionEvent;
+import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.geometry.Bounds;
 import javafx.geometry.HPos;
@@ -86,6 +87,7 @@ public class ContextMenuContent extends Region {
     private static final String ITEM_STYLE_CLASS_LISTENER = "itemStyleClassListener";
 
     private ContextMenu contextMenu;
+    private boolean disposed;
 
     /***************************************************************************
      * UI subcomponents
@@ -108,6 +110,21 @@ public class ContextMenuContent extends Region {
      * in keyboard navigation of menu items.
      */
     private int currentFocusedIndex = -1;
+    private final EventHandler<Event> menuShownHandler = event -> {
+        if (disposed) return;
+        Skin<?> skin = contextMenu.getSkin();
+        if (skin == null || skin.getNode() != this) return;
+        currentFocusedIndex = -1;
+        for (Node child : itemsContainer.getChildren()) {
+            if (child instanceof MenuItemContainer container) {
+                MenuItem item = container.item;
+                if ("choice-box-menu-item".equals(item.getId()) && ((RadioMenuItem)item).isSelected()) {
+                    child.requestFocus();
+                    break;
+                }
+            }
+        }
+    };
 
     private boolean itemsDirty = true;
     private InvalidationListener popupShowingListener = arg0 -> {
@@ -299,17 +316,18 @@ public class ContextMenuContent extends Region {
 
     private void disposeVisualItems() {
         // clean up itemsContainer
-        ObservableList<Node> itemsContainerChilder = itemsContainer.getChildren();
-        for (int i = 0, max = itemsContainerChilder.size(); i < max; i++) {
-            Node n = itemsContainerChilder.get(i);
-
+        List<Node> oldChildren = List.copyOf(itemsContainer.getChildren());
+        itemsContainer.getChildren().clear();
+        for (Node n : oldChildren) {
             if (n instanceof MenuItemContainer) {
                 MenuItemContainer container = (MenuItemContainer) n;
                 container.visibleProperty().unbind();
                 container.dispose();
+            } else if (n.getParent() == null && n.getProperties().get(MenuItem.class) instanceof SeparatorMenuItem item) {
+                n.visibleProperty().unbind();
+                n.getProperties().remove(MenuItem.class, item);
             }
         }
-        itemsContainerChilder.clear();
     }
 
     /**
@@ -318,16 +336,10 @@ public class ContextMenuContent extends Region {
      * of submenus if any, also get cleaned up.
      */
     public void dispose() {
-        disposeBinds();
-        disposeVisualItems();
-
-        disposeContextMenu(submenu);
-        submenu = null;
-        openSubmenu = null;
-        selectedBackground = null;
-        if (contextMenu != null) {
-            contextMenu.getItems().clear();
-            contextMenu = null;
+        ContextMenu menu = contextMenu;
+        disposeListeners();
+        if (menu != null) {
+            menu.getItems().clear();
         }
     }
 
@@ -342,6 +354,9 @@ public class ContextMenuContent extends Region {
         if (cmContent == null) return;
 
         cmContent.dispose(); // recursive call to dispose submenus.
+        if (menu.getSkin() == skin) {
+            menu.setSkin(null);
+        }
     }
 
     @Override protected void layoutChildren() {
@@ -483,23 +498,7 @@ public class ContextMenuContent extends Region {
 
     private void initialize() {
         // JDK-8127198 calling requestFocus inside layout was casuing repeated layouts.
-        contextMenu.addEventHandler(Menu.ON_SHOWN, event -> {
-            currentFocusedIndex = -1;
-            for (Node child : itemsContainer.getChildren()) {
-                if (child instanceof MenuItemContainer) {
-                    final MenuItem item = ((MenuItemContainer)child).item;
-                    // When the choiceBox popup is shown, if this menu item is selected
-                    // do a requestFocus so CSS kicks in and the item is highlighted.
-                    if ("choice-box-menu-item".equals(item.getId())) {
-                        if (((RadioMenuItem)item).isSelected()) {
-                            child.requestFocus();
-                            break;
-                        }
-                    }
-                }
-
-            }
-        });
+        contextMenu.addEventHandler(Menu.ON_SHOWN, menuShownHandler);
 
 //        // FIXME For some reason getSkinnable()Behavior traversal functions don't
 //        // get called as expected, so I've just put the important code below.
@@ -757,10 +756,23 @@ public class ContextMenuContent extends Region {
     }
 
     public void disposeListeners() {
-        if (contextMenu != null) {
-            disposeBinds();
-            contextMenu.showingProperty().removeListener(weakPopupShowingListener);
+        if (disposed) return;
+        disposed = true;
+        contextMenu.removeEventHandler(Menu.ON_SHOWN, menuShownHandler);
+        disposeBinds();
+        contextMenu.showingProperty().removeListener(weakPopupShowingListener);
+        disposeVisualItems();
+        if (upArrow.scrollTimeline != null) {
+            upArrow.stopTimeline();
         }
+        if (downArrow.scrollTimeline != null) {
+            downArrow.stopTimeline();
+        }
+        disposeContextMenu(submenu);
+        submenu = null;
+        openSubmenu = null;
+        selectedBackground = null;
+        contextMenu = null;
     }
 
     private void setUpBinds() {
@@ -1027,8 +1039,8 @@ public class ContextMenuContent extends Region {
         @Override
         public Object queryAccessibleAttribute(AccessibleAttribute attribute, Object... parameters) {
             switch (attribute) {
-                case VISIBLE: return contextMenu.isShowing();
-                case PARENT_MENU: return contextMenu.getOwnerNode();
+                case VISIBLE: return contextMenu != null && contextMenu.isShowing();
+                case PARENT_MENU: return contextMenu == null ? null : contextMenu.getOwnerNode();
                 default: return super.queryAccessibleAttribute(attribute, parameters);
             }
         }
@@ -1124,6 +1136,7 @@ public class ContextMenuContent extends Region {
         private Node graphic;
         private Node label;
         private Node right;
+        private ListChangeListener<String> itemStyleClassListener;
 
         private final LambdaMultiplePropertyChangeListenerHandler listener =
             new LambdaMultiplePropertyChangeListenerHandler();
@@ -1208,11 +1221,9 @@ public class ContextMenuContent extends Region {
         }
 
         public void dispose() {
-            if (item instanceof CustomMenuItem) {
-                Node node = ((CustomMenuItem)item).getContent();
-                if (node != null) {
-                    node.removeEventHandler(MouseEvent.MOUSE_CLICKED, customMenuItemMouseClickedHandler);
-                }
+            if (customMenuItemContent != null) {
+                customMenuItemContent.removeEventHandler(MouseEvent.MOUSE_CLICKED, customMenuItemMouseClickedHandler);
+                customMenuItemContent = null;
             }
 
             listener.dispose();
@@ -1222,11 +1233,11 @@ public class ContextMenuContent extends Region {
                 ((Label)label).textProperty().unbind();
                 label.styleProperty().unbind();
                 label.idProperty().unbind();
-
-                ListChangeListener<String> itemStyleClassListener = (ListChangeListener<String>)item.getProperties().remove(ITEM_STYLE_CLASS_LISTENER);
-                if (itemStyleClassListener != null) {
-                    item.getStyleClass().removeListener(itemStyleClassListener);
-                }
+            }
+            if (itemStyleClassListener != null) {
+                item.getStyleClass().removeListener(itemStyleClassListener);
+                item.getProperties().remove(ITEM_STYLE_CLASS_LISTENER, itemStyleClassListener);
+                itemStyleClassListener = null;
             }
 
             left = null;
@@ -1287,7 +1298,7 @@ public class ContextMenuContent extends Region {
                 // Because that means we overwrite the 'label' style class on the Label.
                 // What we really want is to ensure all style classes in the MenuItem are _copied_
                 // into the label, which is what we do below
-                ListChangeListener<String> itemStyleClassListener = c -> {
+                itemStyleClassListener = c -> {
                     while (c.next()) {
                         label.getStyleClass().removeAll(c.getRemoved());
                         label.getStyleClass().addAll(c.getAddedSubList());
@@ -1442,9 +1453,14 @@ public class ContextMenuContent extends Region {
         }
 
         private EventHandler<MouseEvent> customMenuItemMouseClickedHandler;
+        private Node customMenuItemContent;
 
         private void createNodeMenuItemChildren(final CustomMenuItem item) {
+            if (customMenuItemContent != null) {
+                customMenuItemContent.removeEventHandler(MouseEvent.MOUSE_CLICKED, customMenuItemMouseClickedHandler);
+            }
             Node node = item.getContent();
+            customMenuItemContent = node;
             getChildren().add(node);
 
             // handle hideOnClick

@@ -313,6 +313,25 @@ public abstract class PrismFontFile implements FontResource, FontConstants {
                                                     int aaMode,
                                                     FontStrikeDesc desc);
 
+    private static final class StrikeDisposer implements DisposerRecord {
+        private final Map<FontStrikeDesc, WeakReference<PrismFontStrike>> strikeMap;
+        private final FontStrikeDesc desc;
+        private final WeakReference<PrismFontStrike> reference;
+
+        StrikeDisposer(Map<FontStrikeDesc, WeakReference<PrismFontStrike>> strikeMap,
+                       FontStrikeDesc desc, PrismFontStrike strike) {
+            this.strikeMap = strikeMap;
+            this.desc = desc;
+            reference = Disposer.addRecord(strike, this);
+        }
+
+        @Override
+        public void dispose() {
+            // A reload may already have replaced this exact descriptor entry.
+            strikeMap.remove(desc, reference);
+        }
+    }
+
     @Override
     public FontStrike getStrike(float size, BaseTransform transform,
                                 int aaMode) {
@@ -328,7 +347,9 @@ public abstract class PrismFontFile implements FontResource, FontConstants {
             if (disposer != null) {
                 ref = Disposer.addRecord(strike, disposer);
             } else {
-                ref = new WeakReference<>(strike);
+                // Outline-only strikes never enter the render glyph caches.
+                // They still need their descriptor retired after collection.
+                ref = new StrikeDisposer(strikeMap, desc, strike).reference;
             }
             strikeMap.put(desc, ref);
         }

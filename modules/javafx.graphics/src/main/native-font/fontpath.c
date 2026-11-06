@@ -798,12 +798,12 @@ JNIEXPORT jstring JNICALL
 Java_com_sun_javafx_font_directwrite_DWFactory_regReadFontLink(JNIEnv *env, jclass obj, jstring lpFontName)
 {
     LONG lResult;
-    BYTE* buf;
+    BYTE* buf = NULL;
     DWORD dwBufSize = sizeof(buf);
     DWORD dwType = REG_MULTI_SZ;
     HKEY hKey;
     LPCWSTR fontpath = NULL;
-    jstring linkStr;
+    jstring linkStr = NULL;
 
     LPWSTR lpSubKey = L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\FontLink\\SystemLink";
     lResult = RegOpenKeyExW (HKEY_LOCAL_MACHINE, lpSubKey, 0, KEY_READ, &hKey);
@@ -813,30 +813,32 @@ Java_com_sun_javafx_font_directwrite_DWFactory_regReadFontLink(JNIEnv *env, jcla
     }
 
     fontpath = (*env)->GetStringChars(env, lpFontName, (jboolean*) NULL);
+    if (fontpath == NULL) {
+        goto cleanup;
+    }
 
     //get the buffer size
     lResult = RegQueryValueExW(hKey, fontpath, 0, &dwType, NULL, &dwBufSize);
     if ((lResult == ERROR_SUCCESS) && (dwBufSize > 0)) {
         buf = malloc( dwBufSize );
         if (buf == NULL) {
-            (*env)->ReleaseStringChars(env, lpFontName, fontpath);
-            RegCloseKey (hKey);
-            return (jstring)NULL;
+            goto cleanup;
         }
         lResult = RegQueryValueExW(hKey, fontpath, 0, &dwType, (BYTE*)buf,
                                    &dwBufSize);
-        (*env)->ReleaseStringChars(env, lpFontName, fontpath);
-        RegCloseKey (hKey);
-
         if (lResult != ERROR_SUCCESS) {
-            free(buf);
-            return (jstring)NULL;
+            goto cleanup;
         }
     } else {
-        return (jstring)NULL;
+        goto cleanup;
     }
 
     linkStr = (*env)->NewString(env, (LPWSTR)buf, dwBufSize/sizeof(WCHAR));
+cleanup:
+    if (fontpath != NULL) {
+        (*env)->ReleaseStringChars(env, lpFontName, fontpath);
+    }
+    RegCloseKey(hKey);
     free(buf);
     return linkStr;
 }

@@ -105,25 +105,36 @@ void androidJfx_gotTouchEvent (int count, int* actions, int* ids, int* xs, int* 
         GLASS_LOG_FINE("javaEnv still null, not ready to process touch events");
         return;
     }
+    if ((*javaEnv)->PushLocalFrame(javaEnv, 4) < 0) return;
     if (deviceRegistered == 0) {
         deviceRegistered = 1;
         GLASS_LOG_FINE("This is the first time we have a touch even, register device now");
         (*javaEnv)->CallStaticVoidMethod(javaEnv, jAndroidInputDeviceRegistryClass, monocle_registerDevice);
+        if ((*javaEnv)->ExceptionCheck(javaEnv)) goto cleanup;
     }
     jint jcount = (jint)count;
-    jlong jlongids[jcount];
 
     jintArray jactions = (*javaEnv)->NewIntArray(javaEnv, count);
+    if (jactions == NULL) goto cleanup;
     (*javaEnv)->SetIntArrayRegion(javaEnv, jactions, 0, count, actions);
+    if ((*javaEnv)->ExceptionCheck(javaEnv)) goto cleanup;
     jintArray jids = (*javaEnv)->NewIntArray(javaEnv, count);
+    if (jids == NULL) goto cleanup;
     (*javaEnv)->SetIntArrayRegion(javaEnv, jids, 0, count, ids);
+    if ((*javaEnv)->ExceptionCheck(javaEnv)) goto cleanup;
     jintArray jxs = (*javaEnv)->NewIntArray(javaEnv, count);
+    if (jxs == NULL) goto cleanup;
     (*javaEnv)->SetIntArrayRegion(javaEnv, jxs, 0, count, xs);
+    if ((*javaEnv)->ExceptionCheck(javaEnv)) goto cleanup;
     jintArray jys = (*javaEnv)->NewIntArray(javaEnv, count);
+    if (jys == NULL) goto cleanup;
     (*javaEnv)->SetIntArrayRegion(javaEnv, jys, 0, count, ys);
+    if ((*javaEnv)->ExceptionCheck(javaEnv)) goto cleanup;
 
     (*javaEnv)->CallStaticVoidMethod(javaEnv, jAndroidInputDeviceRegistryClass, monocle_gotTouchEventFromNative,
             jcount, jactions, jids, jxs, jys, primary);
+cleanup:
+    (*javaEnv)->PopLocalFrame(javaEnv, NULL);
 }
 
 void androidJfx_gotKeyEvent (int action, int keyCode, jchar* chars, int count, int mods) {
@@ -137,10 +148,15 @@ void androidJfx_gotKeyEvent (int action, int keyCode, jchar* chars, int count, i
         GLASS_LOG_FINE("This is the first time we have a touch even, register device now");
         (*javaEnv)->CallStaticVoidMethod(javaEnv, jAndroidInputDeviceRegistryClass, monocle_registerDevice);
     }
+    if ((*javaEnv)->ExceptionCheck(javaEnv)) return;
     jcharArray jchars = (*javaEnv)->NewCharArray(javaEnv, count);
+    if (jchars == NULL) return;
     (*javaEnv)->SetCharArrayRegion(javaEnv, jchars, 0, count, chars);
-    (*javaEnv)->CallStaticVoidMethod(javaEnv, jAndroidInputDeviceRegistryClass, monocle_dispatchKeyEventFromNative,
-                                     action, keyCode, jchars, mods);
+    if (!(*javaEnv)->ExceptionCheck(javaEnv)) {
+        (*javaEnv)->CallStaticVoidMethod(javaEnv, jAndroidInputDeviceRegistryClass, monocle_dispatchKeyEventFromNative,
+                                         action, keyCode, jchars, mods);
+    }
+    (*javaEnv)->DeleteLocalRef(javaEnv, jchars);
 }
 
 void androidJfx_gotMenuEvent(int x, int y, int xAbs, int yAbs, bool isKeyboardTrigger) {
@@ -188,7 +204,9 @@ void androidJfx_requestGlassToRedraw() {
         0, 0, (jint) width, (jint) height,
         0, 0, (jint) width, (jint) height,
         SCREEN_DPI, SCREEN_DPI, (jfloat) 1, (jfloat) 1, androidDensity, androidDensity);
+    if (screen == NULL) return;
     (*javaEnv)->CallStaticVoidMethod(javaEnv, jMonocleWindowManagerClass, monocle_repaintAll, screen);
+    (*javaEnv)->DeleteLocalRef(javaEnv, screen);
 }
 
 /* ===== called from Java ===== */

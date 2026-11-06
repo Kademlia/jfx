@@ -448,12 +448,16 @@ void dump_jstring_array(JNIEnv* env, jobjectArray arr) {
 }
 
 gboolean check_and_clear_exception(JNIEnv *env) {
+    if (!env->ExceptionCheck()) {
+        return FALSE;
+    }
     jthrowable t = env->ExceptionOccurred();
     if (t) {
         env->ExceptionClear();
         env->CallStaticVoidMethod(jApplicationCls, jApplicationReportException, t);
         //Clear in case our reporting upcall failed too!
         env->ExceptionClear();
+        env->DeleteLocalRef(t);
         return TRUE;
     }
     return FALSE;

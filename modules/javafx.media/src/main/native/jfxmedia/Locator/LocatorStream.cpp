@@ -28,9 +28,7 @@
 #include <Common/VSMemory.h>
 
 CLocatorStream::CLocatorStream(CStreamCallbacks *callbacks, const char* contentType, const char* location, int64_t llSizeHint)
-    : CLocator(kStreamLocatorType, contentType, location, llSizeHint)
+    : CLocator(kStreamLocatorType, contentType, location, llSizeHint), m_pStreamCallbacks(callbacks)
 {
     LOGGER_LOGMSG(LOGGER_DEBUG, "CLocatorStream::CLocatorStream()");
-    m_pStreamCallbacks = callbacks;
-    m_pAudioStreamCallbacks = NULL;
 }

@@ -1067,7 +1067,8 @@ public abstract class TextInputControlSkin<T extends TextInputControl> extends S
             case SHOW_TEXT_RANGE: {
                 Integer start = (Integer)parameters[0];
                 Integer end = (Integer)parameters[1];
-                if (start != null && end != null) {
+                T control = getSkinnable();
+                if (control != null && start != null && end != null && start >= 0 && end >= start && end <= control.getLength()) {
                     scrollCharacterToVisible(end);
                     scrollCharacterToVisible(start);
                     scrollCharacterToVisible(end);

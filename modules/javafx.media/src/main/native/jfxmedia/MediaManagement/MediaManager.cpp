@@ -33,6 +33,7 @@
 #include <platform/gstreamer/GstMediaManager.h>
 #include <Utils/JfxCriticalSection.h>
 #include <jfxmedia_errors.h>
+#include <memory>
 
 #if TARGET_OS_WIN32
 #include <Utils/win32/WinExceptionHandler.h>
@@ -137,9 +138,11 @@ uint32_t CMediaManager::CreatePlayer(CLocator* pLocator, CPipelineOptions* pOpti
     *ppMedia    = NULL;
 
     //***** If we have a null option object, create one
+    std::unique_ptr<CPipelineOptions> defaultOptions;
     if (NULL == pOptions)
     {
-        pOptions = new (nothrow)CPipelineOptions();
+        defaultOptions.reset(new (nothrow)CPipelineOptions());
+        pOptions = defaultOptions.get();
         if (NULL == pOptions)
             return ERROR_MEMORY_ALLOCATION;
     }
@@ -150,12 +153,14 @@ uint32_t CMediaManager::CreatePlayer(CLocator* pLocator, CPipelineOptions* pOpti
     //***** Create the new CMedia object
     if (ERROR_NONE == uRetCode)
     {
+        defaultOptions.release(); // The pipeline now owns its options.
         //***** Try to create a CMedia to associate with the pipeline
         *ppMedia = new(nothrow) CMedia(pPipeline);
 
         if (NULL == *ppMedia)
         {
             //Cleanup if media creation failed.
+            pPipeline->Dispose();
             delete pPipeline;
             uRetCode = ERROR_MEDIA_CREATION;
         }

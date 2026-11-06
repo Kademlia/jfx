@@ -25,6 +25,7 @@
 
 package com.sun.javafx.font;
 
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -83,7 +84,10 @@ public abstract class PrismFontStrike<T extends PrismFontFile> implements FontSt
 
     @Override
     public synchronized void clearDesc() {
-        fontResource.getStrikeMap().remove(desc);
+        WeakReference<PrismFontStrike> reference = fontResource.strikeMap.get(desc);
+        if (reference != null && reference.get() == this) {
+            fontResource.strikeMap.remove(desc, reference);
+        }
         // Native resources are freed via a disposer once we are sure
         // all references are cleared. It also ensures we don't leak.
     }

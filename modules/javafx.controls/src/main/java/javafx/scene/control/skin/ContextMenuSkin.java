@@ -27,9 +27,9 @@ package javafx.scene.control.skin;
 
 import com.sun.javafx.scene.control.ContextMenuContent;
 import com.sun.javafx.scene.control.EmbeddedTextContextMenuContent;
+import com.sun.javafx.scene.control.ListenerHelper;
 import com.sun.javafx.scene.control.Properties;
 import com.sun.javafx.scene.control.skin.Utils;
-import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.geometry.Bounds;
 import javafx.scene.AccessibleAttribute;
@@ -64,7 +64,8 @@ public class ContextMenuSkin implements Skin<ContextMenu> {
      * returns null in PopupControlSkin. */
     private ContextMenu popupMenu;
 
-    private final Region root;
+    private Region root;
+    private final ListenerHelper listeners = new ListenerHelper(this);
     private TwoLevelFocusPopupBehavior tlFocus;
 
     // used to handle the situation where CSS is applied to the popup
@@ -116,50 +117,44 @@ public class ContextMenuSkin implements Skin<ContextMenu> {
     public ContextMenuSkin(final ContextMenu control) {
         this.popupMenu = control;
 
-        popupMenu.addEventHandler(Menu.ON_SHOWING, new EventHandler<Event>() {
-            @Override public void handle(Event event) {
-                prefHeight = root.prefHeight(-1);
-                prefWidth = root.prefWidth(-1);
-            }
+        listeners.addEventHandler(popupMenu, Menu.ON_SHOWING, event -> {
+            if (popupMenu == null || popupMenu.getSkin() != this) return;
+            Region content = root;
+            prefHeight = content.prefHeight(-1);
+            if (root != content) return;
+            prefWidth = content.prefWidth(-1);
         });
 
         // When a contextMenu is shown, requestFocus on its content to enable
         // keyboard navigation.
-        popupMenu.addEventHandler(Menu.ON_SHOWN, new EventHandler<Event>() {
-            @Override public void handle(Event event) {
-                Node cmContent = popupMenu.getSkin().getNode();
-                if (cmContent != null) {
-//                    cmContent.requestFocus();
-                    if (cmContent instanceof ContextMenuContent) {
-                        Node accMenu = ((ContextMenuContent)cmContent).getItemsContainer();
-                        accMenu.notifyAccessibleAttributeChanged(AccessibleAttribute.VISIBLE);
-                    }
-                }
-
-                root.addEventHandler(KeyEvent.KEY_PRESSED, keyListener);
-
-                performPopupShifts();
+        listeners.addEventHandler(popupMenu, Menu.ON_SHOWN, event -> {
+            if (popupMenu == null || popupMenu.getSkin() != this) return;
+            Region cmContent = root;
+            if (cmContent instanceof ContextMenuContent content) {
+                content.getItemsContainer().notifyAccessibleAttributeChanged(AccessibleAttribute.VISIBLE);
             }
+
+            if (root != cmContent) return;
+            cmContent.addEventHandler(KeyEvent.KEY_PRESSED, keyListener);
+
+            performPopupShifts();
         });
-        popupMenu.addEventHandler(Menu.ON_HIDDEN, new EventHandler<Event>() {
-            @Override public void handle(Event event) {
-                Node cmContent = popupMenu.getSkin().getNode();
-                if (cmContent != null) cmContent.requestFocus();
+        listeners.addEventHandler(popupMenu, Menu.ON_HIDDEN, event -> {
+            if (popupMenu == null || popupMenu.getSkin() != this) return;
+            Region cmContent = root;
+            if (cmContent != null) cmContent.requestFocus();
 
-                root.removeEventHandler(KeyEvent.KEY_PRESSED, keyListener);
-            }
+            if (root != cmContent) return;
+            cmContent.removeEventHandler(KeyEvent.KEY_PRESSED, keyListener);
         });
 
         // For accessibility Menu.ON_HIDING does not work because isShowing is true
         // during the event, Menu.ON_HIDDEN does not work because the Window (in glass)
         // has already being disposed. The fix is to use WINDOW_HIDING (WINDOW_HIDDEN).
-        popupMenu.addEventFilter(WindowEvent.WINDOW_HIDING, new EventHandler<Event>() {
-            @Override public void handle(Event event) {
-                Node cmContent = popupMenu.getSkin().getNode();
-                if (cmContent instanceof ContextMenuContent) {
-                    Node accMenu = ((ContextMenuContent)cmContent).getItemsContainer();
-                    accMenu.notifyAccessibleAttributeChanged(AccessibleAttribute.VISIBLE);
-                }
+        listeners.addEventFilter(popupMenu, WindowEvent.WINDOW_HIDING, event -> {
+            if (popupMenu == null || popupMenu.getSkin() != this) return;
+            if (root instanceof ContextMenuContent content) {
+                content.getItemsContainer().notifyAccessibleAttributeChanged(AccessibleAttribute.VISIBLE);
             }
         });
 
@@ -199,12 +194,21 @@ public class ContextMenuSkin implements Skin<ContextMenu> {
 
     /** {@inheritDoc} */
     @Override public void dispose() {
-        root.idProperty().unbind();
-        root.styleProperty().unbind();
-        if (root instanceof ContextMenuContent cmContent) {
+        if (popupMenu == null) return;
+        Region content = root;
+        popupMenu = null;
+        root = null;
+        listeners.disconnect();
+        content.removeEventHandler(KeyEvent.KEY_PRESSED, keyListener);
+        content.idProperty().unbind();
+        content.styleProperty().unbind();
+        if (content instanceof ContextMenuContent cmContent) {
             cmContent.disposeListeners();
         }
-        if (tlFocus != null) tlFocus.dispose();
+        if (tlFocus != null) {
+            tlFocus.dispose();
+            tlFocus = null;
+        }
     }
 
 
@@ -217,6 +221,8 @@ public class ContextMenuSkin implements Skin<ContextMenu> {
 
     private void performPopupShifts() {
         final ContextMenu contextMenu = getSkinnable();
+        final Region content = root;
+        if (contextMenu == null) return;
         final Node ownerNode = contextMenu.getOwnerNode();
         if (ownerNode == null) return;
 
@@ -224,14 +230,17 @@ public class ContextMenuSkin implements Skin<ContextMenu> {
         if (ownerBounds == null) return;
 
         // shifting vertically
-        final double rootPrefHeight = root.prefHeight(-1);
+        final double rootPrefHeight = content.prefHeight(-1);
+        if (root != content) return;
         shiftY = prefHeight - rootPrefHeight;
         if (shiftY > 0 && (contextMenu.getY() + rootPrefHeight) < ownerBounds.getMinY()) {
             contextMenu.setY(contextMenu.getY() + shiftY);
         }
 
         // shifting horizontally
-        final double rootPrefWidth = root.prefWidth(-1);
+        if (root != content) return;
+        final double rootPrefWidth = content.prefWidth(-1);
+        if (root != content) return;
         shiftX = prefWidth - rootPrefWidth;
         if (shiftX > 0 && (contextMenu.getX() + rootPrefWidth) < ownerBounds.getMinX()) {
             contextMenu.setX(contextMenu.getX() + shiftX);

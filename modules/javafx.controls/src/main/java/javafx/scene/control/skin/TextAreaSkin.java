@@ -90,6 +90,7 @@ public class TextAreaSkin extends TextInputControlSkin<TextArea> {
      **************************************************************************/
 
     final private TextArea textArea;
+    private long textScrollGeneration;
 
     private final TextAreaBehavior behavior;
 
@@ -330,6 +331,7 @@ public class TextAreaSkin extends TextInputControlSkin<TextArea> {
         });
 
         registerInvalidationListener(control.textProperty(), e -> {
+            textScrollGeneration++;
             invalidateMetrics();
             getTextNode().setText(control.textProperty().getValueSafe());
             contentView.requestLayout();
@@ -802,6 +804,7 @@ public class TextAreaSkin extends TextInputControlSkin<TextArea> {
     /** {@inheritDoc} */
     @Override public void dispose() {
         if (getSkinnable() == null) return;
+        textScrollGeneration++;
         getSkinnable().removeEventFilter(ScrollEvent.ANY, scrollEventFilter);
         getChildren().remove(scrollPane);
         super.dispose();
@@ -921,11 +924,13 @@ public class TextAreaSkin extends TextInputControlSkin<TextArea> {
         // removed the bounds are not immediately updated; is this really
         // necessary?
 
+        long generation = textScrollGeneration;
         Platform.runLater(() -> {
-            if (getSkinnable().getLength() == 0) {
-                return;
-            }
+            TextArea control = getSkinnable();
+            if (control == null || control.getSkin() != this || generation != textScrollGeneration) return;
+            if (control.getLength() == 0 || index < 0 || index > control.getLength()) return;
             Rectangle2D characterBounds = getCharacterBounds(index);
+            if (getSkinnable() != control || control.getSkin() != this || generation != textScrollGeneration) return;
             scrollBoundsToVisible(characterBounds);
         });
     }
@@ -1339,8 +1344,11 @@ public class TextAreaSkin extends TextInputControlSkin<TextArea> {
 
                 // if only there was a way to force a layout from within the layout!
                 // runlater causes flicker
+                long generation = textScrollGeneration;
                 Platform.runLater(() -> {
+                    if (getSkinnable() == null || textArea.getSkin() != TextAreaSkin.this || generation != textScrollGeneration) return;
                     scrollPane.layout();
+                    if (getSkinnable() == null || textArea.getSkin() != TextAreaSkin.this || generation != textScrollGeneration) return;
                     scrollCaretToVisible();
                 });
             }

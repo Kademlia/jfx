@@ -28,7 +28,6 @@ package javafx.scene.control.skin;
 import java.lang.ref.WeakReference;
 import java.util.List;
 
-import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
 import javafx.beans.WeakInvalidationListener;
@@ -140,6 +139,7 @@ public abstract class TableViewSkinBase<M, S, C extends Control, I extends Index
      * resizing of thte columnReorderLine and columnReorderOverlay.
      */
     private TableHeaderRow tableHeaderRow;
+    private TC pendingScrollColumn;
 
     private Callback<C, I> rowFactory;
 
@@ -276,6 +276,9 @@ public abstract class TableViewSkinBase<M, S, C extends Control, I extends Index
         });
 
         lh.addListChangeListener(getVisibleLeafColumns(), (c) -> {
+            if (pendingScrollColumn != null && !isScrollColumnVisible(pendingScrollColumn)) {
+                pendingScrollColumn = null;
+            }
             updateVisibleColumnCount();
             while (c.next()) {
                 updateVisibleLeafColumnWidthListeners(c.getAddedSubList(), c.getRemoved());
@@ -374,6 +377,7 @@ public abstract class TableViewSkinBase<M, S, C extends Control, I extends Index
             return;
         }
 
+        pendingScrollColumn = null;
         if (placeholderRegion != null) {
             getChildren().remove(placeholderRegion);
         }
@@ -501,6 +505,12 @@ public abstract class TableViewSkinBase<M, S, C extends Control, I extends Index
         columnReorderOverlay.setVisible(tableHeaderRow.isReordering());
 
         checkContentWidthState();
+        if (pendingScrollColumn != null) {
+            // Finish the affected children before applying the scroll requested before layout.
+            tableHeaderRow.layout();
+            flow.layout();
+            scrollHorizontally(pendingScrollColumn);
+        }
     }
 
     /**
@@ -946,25 +956,32 @@ public abstract class TableViewSkinBase<M, S, C extends Control, I extends Index
      * @since 12
      */
     protected void scrollHorizontally(TC col) {
-        if (col == null || !col.isVisible()) return;
-
         final Control control = getSkinnable();
-
-        // JDK-8096491 - if we are trying to scroll to a column that has not
-        // yet even been rendered, we must wait until the layout pass has
-        // happened and then do the scroll. The laziest way to do this is to
-        // queue up the task to run later, at which point we will have hopefully
-        // fully run the column through layout and css.
-        TableColumnHeader header = tableHeaderRow.getColumnHeaderFor(col);
-        if (header == null || header.getWidth() <= 0) {
-            Platform.runLater(() -> scrollHorizontally(col));
+        if (control == null) return;
+        if (col == null || !isScrollColumnVisible(col)) {
+            pendingScrollColumn = null;
             return;
         }
+
+        // JDK-8096491: retain only the latest request until layout creates and sizes its header.
+        TableColumnHeader header = tableHeaderRow.getColumnHeaderFor(col);
+        if (header == null || header.getWidth() <= 0) {
+            if (pendingScrollColumn != col) {
+                pendingScrollColumn = col;
+                control.requestLayout();
+            }
+            return;
+        }
+        pendingScrollColumn = null;
 
         // work out where this column header is, and it's width (start -> end)
         double start = 0;
         for (TC c : getVisibleLeafColumns()) {
-            if (c.equals(col)) break;
+            TableColumnBase<?, ?> ancestor = c;
+            while (ancestor != null && ancestor != col) {
+                ancestor = ancestor.getParentColumn();
+            }
+            if (ancestor == col) break;
             start += c.getWidth();
         }
         double end = start + col.getWidth();
@@ -992,6 +1009,18 @@ public abstract class TableViewSkinBase<M, S, C extends Control, I extends Index
         // actually shift the flow - this will result in the header moving
         // as well
         flow.getHbar().setValue(newPos);
+    }
+
+    private boolean isScrollColumnVisible(TableColumnBase<?, ?> column) {
+        TableColumnBase<?, ?> current = column;
+        while (current != null) {
+            if (!current.isVisible()) return false;
+            TableColumnBase<?, ?> parent = current.getParentColumn();
+            if (parent == null) return TableSkinUtils.getColumns(this).contains(current);
+            if (!parent.getColumns().contains(current)) return false;
+            current = parent;
+        }
+        return false;
     }
 
     private boolean isCellSelected(int row) {

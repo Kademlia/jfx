@@ -531,14 +531,14 @@ JNIEXPORT jint JNICALL Java_com_sun_prism_es2_GLContext_nCreateFBO
 JNIEXPORT jint JNICALL Java_com_sun_prism_es2_GLContext_nCreateProgram
 (JNIEnv *env, jclass class, jlong nativeCtxInfo, jint vertID, jintArray fragIDArr,
         jint numAttrs, jobjectArray attrs, jintArray indexs) {
-    GLuint shaderProgram;
-    GLint success;
+    GLuint shaderProgram = 0;
+    GLint success = GL_FALSE;
     int i;
     jstring attrName;
-    jint *indexsPtr;
+    jint *indexsPtr = NULL;
     char *attrNameString;
-    jint *fragIDs;
-    jsize length;
+    jint *fragIDs = NULL;
+    jsize fragmentCount;
     ContextInfo *ctxInfo = (ContextInfo *) jlong_to_ptr(nativeCtxInfo);
     if ((ctxInfo == NULL) || (attrs == NULL) || (indexs == NULL)
             || (ctxInfo->glCreateProgram == NULL)
@@ -553,24 +553,41 @@ JNIEXPORT jint JNICALL Java_com_sun_prism_es2_GLContext_nCreateProgram
         return 0;
     }
 
-    if (fragIDArr != NULL) {
-        length = (*env)->GetArrayLength(env, fragIDArr);
-        fragIDs = (*env)->GetIntArrayElements(env, fragIDArr, NULL);
-    } else {
+    if (fragIDArr == NULL || numAttrs < 0
+            || numAttrs > (*env)->GetArrayLength(env, attrs)
+            || numAttrs > (*env)->GetArrayLength(env, indexs)) {
         return 0;
+    }
+    fragmentCount = (*env)->GetArrayLength(env, fragIDArr);
+    fragIDs = (*env)->GetIntArrayElements(env, fragIDArr, NULL);
+    if (fragIDs == NULL) {
+        return 0;
+    }
+    indexsPtr = (*env)->GetIntArrayElements(env, indexs, NULL);
+    if (indexsPtr == NULL) {
+        goto cleanup;
     }
     // create the program object and attach it to the shader
     shaderProgram = ctxInfo->glCreateProgram();
+    if (shaderProgram == 0) {
+        goto cleanup;
+    }
     ctxInfo->glAttachShader(shaderProgram, vertID);
-    for (i = 0; i < length; i++) {
+    for (i = 0; i < fragmentCount; i++) {
         ctxInfo->glAttachShader(shaderProgram, fragIDs[i]);
     }
 
     // bind any user-defined index values to their corresponding names
-    indexsPtr = (*env)->GetIntArrayElements(env, indexs, NULL);
     for (i = 0; i < numAttrs; i++) {
         attrName = (*env)->GetObjectArrayElement(env, attrs, i);
+        if (attrName == NULL) {
+            goto cleanup;
+        }
         attrNameString = strJavaToC(env, attrName);
+        (*env)->DeleteLocalRef(env, attrName);
+        if (attrNameString == NULL) {
+            goto cleanup;
+        }
         ctxInfo->glBindAttribLocation(shaderProgram, indexsPtr[i], attrNameString);
         free(attrNameString);
     }
@@ -580,28 +597,40 @@ JNIEXPORT jint JNICALL Java_com_sun_prism_es2_GLContext_nCreateProgram
     ctxInfo->glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
 
     if (success == GL_FALSE) {
-        GLint  length;
+        GLint logLength;
 
-        ctxInfo->glGetProgramiv(shaderProgram, GL_INFO_LOG_LENGTH, &length);
-        if (length) {
-            char* msg  =  (char *) malloc(length * sizeof(char));
-            ctxInfo->glGetProgramInfoLog(shaderProgram, length, NULL, msg);
-            fprintf(stderr, "Program link log: %.*s\n", length, msg);
-            free(msg);
+        ctxInfo->glGetProgramiv(shaderProgram, GL_INFO_LOG_LENGTH, &logLength);
+        if (logLength > 0) {
+            char* msg = (char *) malloc(logLength * sizeof(char));
+            if (msg != NULL) {
+                ctxInfo->glGetProgramInfoLog(shaderProgram, logLength, NULL, msg);
+                fprintf(stderr, "Program link log: %.*s\n", logLength, msg);
+                free(msg);
+            }
         } else {
             fprintf(stderr, "glLinkProgram: GL_LINK_STATUS returns GL_FALSE but GL_INFO_LOG_LENGTH returns 0\n");
         }
-
-        ctxInfo->glDetachShader(shaderProgram, vertID);
-        ctxInfo->glDeleteShader(vertID);
-        for(i = 0; i < length; i++) {
-            ctxInfo->glDetachShader(shaderProgram, fragIDs[i]);
-            ctxInfo->glDeleteShader(fragIDs[i]);
-        }
-        ctxInfo->glDeleteProgram(shaderProgram);
-        return 0;
     }
 
+cleanup:
+    if (success == GL_FALSE) {
+        if (shaderProgram != 0) {
+            ctxInfo->glDetachShader(shaderProgram, vertID);
+            for (i = 0; i < fragmentCount; i++) {
+                ctxInfo->glDetachShader(shaderProgram, fragIDs[i]);
+            }
+            ctxInfo->glDeleteProgram(shaderProgram);
+        }
+        ctxInfo->glDeleteShader(vertID);
+        for (i = 0; i < fragmentCount; i++) {
+            ctxInfo->glDeleteShader(fragIDs[i]);
+        }
+        shaderProgram = 0;
+    }
+
+    if (indexsPtr != NULL) {
+        (*env)->ReleaseIntArrayElements(env, indexs, indexsPtr, JNI_ABORT);
+    }
     (*env)->ReleaseIntArrayElements(env, fragIDArr, fragIDs, JNI_ABORT);
 
     return shaderProgram;

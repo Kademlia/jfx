@@ -63,7 +63,8 @@ private:
     uint32_t    CreateHLSPipeline(GstElement* pVideoSink, CPipelineOptions* pOptions, GstElementContainer* pElements, CPipeline** ppPipeline);
 
     uint32_t    CreateSourceElement(CLocator *locator, CStreamCallbacks *callbacks, int streamMimeType,
-                                    GstElement** ppElement, GstElement** ppBuffer, CPipelineOptions *pOptions);
+                                    GstElement** ppElement, GstElement** ppBuffer, GstElement** ppJavaSource,
+                                    CPipelineOptions *pOptions);
     GstElement* CreateAudioSinkElement();
     uint32_t    AttachToSource(GstBin* bin, GstElement* source, GstElement* buffer, GstElement* demuxer);
 

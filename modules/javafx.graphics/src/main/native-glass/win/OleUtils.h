@@ -208,14 +208,14 @@ inline HRESULT checkJavaException(JNIEnv *env)
         JLocalRef<jthrowable> ex(env, env->ExceptionOccurred());
         if(ex){
             env->ExceptionClear();
-            jclass cls = env->FindClass("java/lang/Throwable");
+            JLClass cls(env, env->FindClass("java/lang/Throwable"));
             if (env->ExceptionCheck()) {
                 env->ExceptionDescribe();
                 env->ExceptionClear();
                 return E_JAVAEXCEPTION;
             }
             static jmethodID s_jcidThrowable_getMessage = env->GetMethodID(
-                JLClass(env, cls),
+                cls,
                 "getMessage",
                 "()Ljava/lang/String;");
             if (env->ExceptionCheck()) {
@@ -227,6 +227,11 @@ inline HRESULT checkJavaException(JNIEnv *env)
                 ex,
                 s_jcidThrowable_getMessage
             ));
+            if (env->ExceptionCheck()) {
+                env->ExceptionDescribe();
+                env->ExceptionClear();
+                return E_JAVAEXCEPTION;
+            }
             if(jsMessage){
                 STRACE1(_T("Java Message:%s"), (LPCWSTR)JString(env, jsMessage) );
             }

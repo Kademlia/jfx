@@ -1444,7 +1444,7 @@ void NotifyTouchInput(
     const bool isDirect = (ti->dwFlags & TOUCHEVENTF_PEN) == 0;
 
     jint modifiers = GetModifiers();
-    env->CallStaticObjectMethod(gestureSupportCls,
+    env->CallStaticVoidMethod(gestureSupportCls,
                                 javaIDs.Gestures.notifyBeginTouchEventMID,
                                 view, modifiers, jboolean(isDirect),
                                 jint(count));
@@ -1478,7 +1478,7 @@ void NotifyTouchInput(
             client.x = max(0, rect.right - rect.left) - client.x;
         }
 
-        env->CallStaticObjectMethod(gestureSupportCls,
+        env->CallStaticVoidMethod(gestureSupportCls,
                                     javaIDs.Gestures.notifyNextTouchEventMID,
                                     view, eventID, touchID,
                                     jint(client.x), jint(client.y),
@@ -1486,7 +1486,7 @@ void NotifyTouchInput(
         CheckAndClearException(env);
     }
 
-    env->CallStaticObjectMethod(
+    env->CallStaticVoidMethod(
             gestureSupportCls, javaIDs.Gestures.notifyEndTouchEventMID, view);
     CheckAndClearException(env);
 }

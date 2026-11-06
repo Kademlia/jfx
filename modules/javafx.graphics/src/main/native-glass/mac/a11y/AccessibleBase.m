@@ -128,10 +128,22 @@ static NSMutableDictionary * rolesMap;
 {
     GET_MAIN_JENV;
     if (env == NULL) return NULL;
-    jobject jresult = (jobject)(*env)->CallLongMethod(env, [self getJAccessible],
-                                              jAccessibilityAttributeValue, (jlong)attribute);
-    GLASS_CHECK_EXCEPTION(env);
-    return variantToID(env, jresult);
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        GLASS_CHECK_EXCEPTION(env);
+        return NULL;
+    }
+    @try {
+        jobject jresult = (*env)->CallObjectMethod(env, [self getJAccessible],
+                                                  jAccessibilityAttributeValue, (jlong)attribute);
+        if ((*env)->ExceptionCheck(env)) {
+            GLASS_CHECK_EXCEPTION(env);
+            return NULL;
+        }
+        return variantToID(env, jresult);
+    } @finally {
+        GLASS_CHECK_EXCEPTION(env);
+        (*env)->PopLocalFrame(env, NULL);
+    }
 }
 
 /*
@@ -144,11 +156,23 @@ static NSMutableDictionary * rolesMap;
 {
     GET_MAIN_JENV;
     if (env == NULL) return NULL;
-    jobject jresult = (jobject)(*env)->CallLongMethod(env, [self getJAccessible],
-                                              jAccessibilityAttributeValueForParameter,
-                                              (jlong)attribute, (jlong)parameter);
-    GLASS_CHECK_EXCEPTION(env);
-    return variantToID(env, jresult);
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        GLASS_CHECK_EXCEPTION(env);
+        return NULL;
+    }
+    @try {
+        jobject jresult = (*env)->CallObjectMethod(env, [self getJAccessible],
+                                                  jAccessibilityAttributeValueForParameter,
+                                                  (jlong)attribute, (jlong)parameter);
+        if ((*env)->ExceptionCheck(env)) {
+            GLASS_CHECK_EXCEPTION(env);
+            return NULL;
+        }
+        return variantToID(env, jresult);
+    } @finally {
+        GLASS_CHECK_EXCEPTION(env);
+        (*env)->PopLocalFrame(env, NULL);
+    }
 }
 
 /*

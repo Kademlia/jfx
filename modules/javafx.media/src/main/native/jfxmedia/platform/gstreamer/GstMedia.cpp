@@ -38,6 +38,7 @@
 #include <jni/JavaInputStreamCallbacks.h>
 #include <jfxmedia_errors.h>
 #include <Utils/LowLevelPerf.h>
+#include <memory>
 
 using namespace std;
 
@@ -55,90 +56,78 @@ extern "C" {
                           jlongArray jlMediaHandle)
     {
         CMedia*         pMedia = NULL;
-        char*           pjContent = (char*)env->GetStringUTFChars(jContentType , NULL);
-        jstring         jLocation = CLocator::LocatorGetStringLocation(env, jLocator);
-        char*           pjLocation = NULL;
         CMediaManager*  pManager = NULL;
         uint32_t        uErrCode = CMediaManager::GetInstance(&pManager);
 
         if (ERROR_NONE != uErrCode)
             return uErrCode;
+        if (NULL == pManager)
+            return ERROR_MANAGER_NULL;
 
         //***** pre-conditions
-        if (NULL == pjContent)
-        {
-            return ERROR_MEMORY_ALLOCATION;
-        }
+        jstring jLocation = CLocator::LocatorGetStringLocation(env, jLocator);
         if (NULL == jLocation)
-        {
             return ERROR_MEMORY_ALLOCATION;
-        }
-        pjLocation = (char*)env->GetStringUTFChars(jLocation , NULL);
-        if (NULL == pjLocation)
-        {
-            env->ReleaseStringUTFChars(jContentType, pjContent);
+        struct UtfCharsDeleter {
+            JNIEnv* env;
+            jstring value;
+            void operator()(const char* chars) const { env->ReleaseStringUTFChars(value, chars); }
+        };
+        std::unique_ptr<const char, UtfCharsDeleter> content(
+                env->GetStringUTFChars(jContentType, NULL), {env, jContentType});
+        if (!content)
             return ERROR_MEMORY_ALLOCATION;
-        }
-        if (NULL == pManager)
-        {
-            env->ReleaseStringUTFChars(jContentType, pjContent);
-            env->ReleaseStringUTFChars(jLocation, pjLocation);
-            return ERROR_MANAGER_NULL;
-        }
-
+        std::unique_ptr<const char, UtfCharsDeleter> location(
+                env->GetStringUTFChars(jLocation, NULL), {env, jLocation});
+        if (!location)
+            return ERROR_MEMORY_ALLOCATION;
         //***** Create a new native locator object
-        CJavaInputStreamCallbacks *callbacks = new (nothrow) CJavaInputStreamCallbacks();
+        std::unique_ptr<CJavaInputStreamCallbacks> callbacks(new (nothrow) CJavaInputStreamCallbacks());
+        if (!callbacks)
+            return ERROR_MEMORY_ALLOCATION;
         jobject jConnectionHolder = CLocator::CreateConnectionHolder(env, jLocator);
-        if (NULL == callbacks || NULL == jConnectionHolder)
+        if (NULL == jConnectionHolder)
             return ERROR_MEMORY_ALLOCATION;
 
         if (!callbacks->Init(env, jConnectionHolder))
-        {
-            env->ReleaseStringUTFChars(jContentType, pjContent);
-            env->ReleaseStringUTFChars(jLocation, pjLocation);
-            delete callbacks;
             return ERROR_MEDIA_CREATION;
-        }
 
-        CLocatorStream *locator = new(nothrow) CLocatorStream(callbacks, pjContent, pjLocation, (int64_t)jSizeHint);
-        env->ReleaseStringUTFChars(jContentType, pjContent);
-        env->ReleaseStringUTFChars(jLocation, pjLocation);
+        std::unique_ptr<CLocatorStream> locator(new(nothrow) CLocatorStream(callbacks.get(), content.get(), location.get(), (int64_t)jSizeHint));
+        content.reset();
+        location.reset();
 
-        if (NULL == locator)
+        if (!locator)
         {
-            delete callbacks;
             return ERROR_MEMORY_ALLOCATION;
         }
+        callbacks.release(); // The locator owns callbacks until source creation.
 
         // Load any additional streams if needed.
         // HLS_PROP_HAS_AUDIO_EXT_STREAM
-        int hasAudioStream = callbacks->Property(HLS_PROP_HAS_AUDIO_EXT_STREAM, 0);
+        int hasAudioStream = locator->GetCallbacks()->Property(HLS_PROP_HAS_AUDIO_EXT_STREAM, 0);
         if (hasAudioStream)
         {
-            CJavaInputStreamCallbacks *audioStreamCallbacks =
-                    new (nothrow) CJavaInputStreamCallbacks();
+            std::unique_ptr<CJavaInputStreamCallbacks> audioStreamCallbacks(
+                    new (nothrow) CJavaInputStreamCallbacks());
+            if (!audioStreamCallbacks)
+                return ERROR_MEMORY_ALLOCATION;
             jobject jAudioStreamConnectionHolder =
                     CLocator::GetAudioStreamConnectionHolder(env, jLocator, jConnectionHolder);
-            if (NULL == audioStreamCallbacks || NULL == jAudioStreamConnectionHolder)
+            if (NULL == jAudioStreamConnectionHolder)
             {
-                delete callbacks;
-                delete locator;
                 return ERROR_MEMORY_ALLOCATION;
             }
 
             if (!audioStreamCallbacks->Init(env, jAudioStreamConnectionHolder))
             {
-                delete callbacks;
-                delete audioStreamCallbacks;
-                delete locator;
                 return ERROR_MEDIA_CREATION;
             }
 
-            locator->SetAudioCallbacks(audioStreamCallbacks);
+            locator->SetAudioCallbacks(audioStreamCallbacks.release());
         }
 
         //***** Create the media object
-        uErrCode  = pManager->CreatePlayer(locator, pOptions, &pMedia);
+        uErrCode  = pManager->CreatePlayer(locator.get(), pOptions, &pMedia);
 
         //***** return
         if (ERROR_NONE == uErrCode)
@@ -156,10 +145,6 @@ extern "C" {
                 uErrCode = ERROR_MEDIA_INVALID;
             }
         }
-
-        // Free locator
-        if (locator != NULL)
-            delete locator;
 
         // Clean up
         if (ERROR_NONE != uErrCode)
