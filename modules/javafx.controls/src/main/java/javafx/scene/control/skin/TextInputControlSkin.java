@@ -238,6 +238,12 @@ public abstract class TextInputControlSkin<T extends TextInputControl> extends S
             }
         };
 
+        // The behavior and caret-position listeners can request blinking while the caret is hidden.
+        registerChangeListener(control.focusedProperty(), observable -> setCaretAnimating(true));
+        registerChangeListener(control.editableProperty(), observable -> setCaretAnimating(true));
+        registerChangeListener(control.disabledProperty(), observable -> setCaretAnimating(true));
+        registerChangeListener(displayCaret, observable -> setCaretAnimating(true));
+
         if (SHOW_HANDLES) {
             caretHandle      = new StackPane();
             selectionHandle1 = new StackPane();
@@ -404,6 +410,8 @@ public abstract class TextInputControlSkin<T extends TextInputControl> extends S
         if (getSkinnable() == null) {
             return;
         }
+
+        setCaretAnimating(false);
 
         if (getSkinnable().getInputMethodRequests() == inputMethodRequests) {
             getSkinnable().setInputMethodRequests(null);
@@ -810,7 +818,9 @@ public abstract class TextInputControlSkin<T extends TextInputControl> extends S
      * @param value whether caret should be blinking.
      */
     public void setCaretAnimating(boolean value) {
-        if (value) {
+        T control = getSkinnable();
+        if (value && control != null && control.isFocused() && control.isEditable()
+                && !control.isDisabled() && isDisplayCaret()) {
             caretBlinking.start();
         } else {
             caretBlinking.stop();
